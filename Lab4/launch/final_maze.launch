@@ -1,0 +1,22 @@
+<launch>
+<arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
+  <arg name="x_pos" default="-2.2"/>
+  <arg name="y_pos" default="0.4"/>
+  <arg name="z_pos" default="0.05"/>
+  <arg name="maze" default="final_maze"/>
+
+  <!-- Uncomment this if you want an easier maze -->
+  <!-- <arg name="maze" value="final_maze_easier"/> -->
+
+  <include file="$(find rbe3002_final)/launch/maze_sim.launch">
+    <arg name="model" value="$(arg model)"/>
+    <arg name="x_pos" value="$(arg x_pos)"/>
+    <arg name="y_pos" value="$(arg y_pos)"/>
+    <arg name="z_pos" value="$(arg z_pos)"/>
+    <arg name="maze" value="$(arg maze)"/>
+  </include>
+
+  <!-- Turtlebot3  -->
+  <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch" />
+
+</launch>
