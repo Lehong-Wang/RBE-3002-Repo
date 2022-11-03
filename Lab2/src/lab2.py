@@ -15,6 +15,7 @@ class Lab2:
         ### REQUIRED CREDIT
         ### Initialize node, name it 'lab2'
         # TODO
+        rospy.init_node('lab2')
         ### Tell ROS that this node publishes Twist messages on the '/cmd_vel' topic
         # TODO
         ### Tell ROS that this node subscribes to Odometry messages on the '/odom' topic
@@ -36,6 +37,7 @@ class Lab2:
         ### REQUIRED CREDIT
         ### Make a new Twist message
         # TODO
+        msg_cmd_vel = Twist()
         ### Publish the message
         # TODO
         pass # delete this when you implement your code
