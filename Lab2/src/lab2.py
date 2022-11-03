@@ -18,19 +18,20 @@ class Lab2:
         rospy.init_node('lab2')
         ### Tell ROS that this node publishes Twist messages on the '/cmd_vel' topic
         # TODO
-        rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+        self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         ### Tell ROS that this node subscribes to Odometry messages on the '/odom' topic
         ### When a message is received, call self.update_odometry
         # TODO
-        rospy.Subscriber('/odom', Odometry, self.update_odometry)
+        self.sub_odom = rospy.Subscriber('/odom', Odometry, self.update_odometry)
         ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
         ### When a message is received, call self.go_to
         # TODO
-        rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
-        self.msg_cmd_vel = Twist()
+        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
 
-        print("calling init")
-        pass # delete this when you implement your code
+        self.msg_cmd_vel = Twist()
+        self.rate = rospy.Rate(10) # 10hz
+
+        print("finished init")
 
 
 
@@ -53,9 +54,8 @@ class Lab2:
         self.msg_cmd_vel.angular.z = angular_speed
         ### Publish the message
         # TODO
-        self.msg_cmd_vel.publish(msg_cmd_vel)
+        self.pub.publish(self.msg_cmd_vel)
         print(f"calling send_speed {(linear_speed, angular_speed)}")
-        pass # delete this when you implement your code
 
     
         
@@ -128,9 +128,8 @@ class Lab2:
 
 
     def run(self):
-      rate = rospy.Rate(10) # 10hz
       while not rospy.is_shutdown():
-        rate.sleep()
+        self.rate.sleep()
         self.send_speed(0.5, 1)
       rospy.spin()
 
