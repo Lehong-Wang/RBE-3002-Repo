@@ -29,6 +29,9 @@ class Lab2:
         self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
 
         self.msg_cmd_vel = Twist()
+        
+        self.pose = Point()
+        
         self.rate = rospy.Rate(10) # 10hz
 
         print("finished init")
@@ -66,6 +69,16 @@ class Lab2:
         :param linear_speed [float] [m/s] The forward linear speed.
         """
         ### REQUIRED CREDIT
+        # Save the initial pose
+        
+        # Send the speed
+        self.send_speed(linear_speed, 0)
+        
+        # If reached desired distance
+        
+        # Stop the robot
+        self.send_speed(0, 0)
+        
         pass # delete this when you implement your code
 
 
@@ -100,6 +113,12 @@ class Lab2:
         """
         ### REQUIRED CREDIT
         # TODO
+        self.px = msg.pose.pose.position.x
+        self.py = msg.pose.pose.position.y
+        quat_orig = msg.pose.pose.orientation
+        quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
+        ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
+        self.pth = yaw
         pass # delete this when you implement your code
 
 
@@ -130,7 +149,8 @@ class Lab2:
     def run(self):
       while not rospy.is_shutdown():
         self.rate.sleep()
-        self.send_speed(0.5, 1)
+        #self.send_speed(0.5, 1)
+        self.update_odometry('/odom')
       rospy.spin()
 
 if __name__ == '__main__':
