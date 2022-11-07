@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import math
+
 import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
@@ -30,10 +32,14 @@ class Lab2:
 
         self.msg_cmd_vel = Twist()
         
-        self.pose = Point()
+        # self.pose = Point()
         
         self.rate = rospy.Rate(10) # 10hz
 
+        # robot pos
+        self.px = 0
+        self.py = 0
+        self.pth = 0
         print("finished init")
 
 
@@ -49,7 +55,7 @@ class Lab2:
         # TODO
         # Linear velocity
         self.msg_cmd_vel.linear.x = linear_speed
-        self.msg_cmd_vel.linear.y = 0.0
+        self.msg_cmd_vel.linear.y = 0
         self.msg_cmd_vel.linear.z = 0.0
         # Angular velocity
         self.msg_cmd_vel.angular.x = 0.0
@@ -58,7 +64,8 @@ class Lab2:
         ### Publish the message
         # TODO
         self.pub.publish(self.msg_cmd_vel)
-        print(f"calling send_speed {(linear_speed, angular_speed)}")
+        self.rate.sleep()
+        # print(f"calling send_speed {(linear_speed, angular_speed)}")
 
     
         
@@ -70,16 +77,24 @@ class Lab2:
         """
         ### REQUIRED CREDIT
         # Save the initial pose
-        
+        initial_px = self.px
+        initial_py = self.py
+        error = float('inf')
+        tolerance = 0.01
+
         # Send the speed
         self.send_speed(linear_speed, 0)
-        
+
         # If reached desired distance
-        
+        while (error > tolerance):
+            error = abs(math.sqrt((self.px - initial_px) ** 2 + (self.py - initial_py) ** 2) - distance)
+            print(f"Px: {self.px}, py: {self.py}, init: {(initial_px, initial_py)}")
+            print(f"error: {error}")
+            self.send_speed(linear_speed, 0)
+            rospy.sleep(0.05)
         # Stop the robot
         self.send_speed(0, 0)
         
-        pass # delete this when you implement your code
 
 
 
@@ -119,8 +134,7 @@ class Lab2:
         quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
         ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
         self.pth = yaw
-        pass # delete this when you implement your code
-
+        # print(f"update_odometry {(self.px, self.py, self.pth)}")
 
 
     def arc_to(self, position):
@@ -147,11 +161,12 @@ class Lab2:
 
 
     def run(self):
-      while not rospy.is_shutdown():
-        self.rate.sleep()
-        #self.send_speed(0.5, 1)
-        self.update_odometry('/odom')
-      rospy.spin()
+        rospy.sleep(1)
+        self.drive(0.3,0.1)
+        # while not rospy.is_shutdown():
+        # # self.send_speed(0.5, 1)
+        #     self.drive(1, 1)
+        rospy.spin()
 
 if __name__ == '__main__':
     Lab2().run()
