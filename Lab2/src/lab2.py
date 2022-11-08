@@ -105,8 +105,23 @@ class Lab2:
         :param angular_speed [float] [rad/s] The angular speed.
         """
         ### REQUIRED CREDIT
-        pass # delete this when you implement your code
+        # Save the initial pose
+        initial_pth = self.pth
+        error = float('inf')
+        tolerance = 0.1
 
+        # Send the speed
+        self.send_speed(0, aspeed)
+
+        # If reached desired distance
+        while (error > tolerance):
+            error = abs(self.pth - (initial_pth + angle))
+            print(f"pth: {self.px}, init: {(initial_pth)}")
+            print(f"error: {error}")
+            self.send_speed(0, aspeed)
+            rospy.sleep(0.05)
+        # Stop the robot
+        self.send_speed(0, 0)
 
 
     def go_to(self, msg):
@@ -134,7 +149,7 @@ class Lab2:
         quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
         ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
         self.pth = yaw
-        # print(f"update_odometry {(self.px, self.py, self.pth)}")
+        print(f"update_odometry {(self.px, self.py, self.pth)}")
 
 
     def arc_to(self, position):
@@ -162,7 +177,10 @@ class Lab2:
 
     def run(self):
         rospy.sleep(1)
-        self.drive(0.3,0.1)
+        self.rotate(3, -0.2)
+        # while not rospy.is_shutdown():
+        #     self.send_speed(0,0.5)
+        # self.drive(0.3,0.1)
         # while not rospy.is_shutdown():
         # # self.send_speed(0.5, 1)
         #     self.drive(1, 1)
