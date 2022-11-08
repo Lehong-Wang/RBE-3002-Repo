@@ -107,22 +107,22 @@ class Lab2:
         ### REQUIRED CREDIT
         # Save the initial pose
         initial_pth = self.pth
+        maped_init_pth = initial_pth + math.pi
+        target_pth = (maped_init_pth + angle) % (2*math.pi) - math.pi
         error = float('inf')
         tolerance = 0.1
-
-        # Send the speed
-        self.send_speed(0, aspeed)
-
+        
         # If reached desired distance
         while (error > tolerance):
-            error = abs(self.pth - (initial_pth + angle))
-            print(f"pth: {self.px}, init: {(initial_pth)}")
+            error = abs(self.pth - target_pth)
+            print(f"pth: {self.px}, init: {(initial_pth)}, target: {target_pth}")
             print(f"error: {error}")
             self.send_speed(0, aspeed)
             rospy.sleep(0.05)
         # Stop the robot
         self.send_speed(0, 0)
 
+    
 
     def go_to(self, msg):
         """
@@ -149,7 +149,7 @@ class Lab2:
         quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
         ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
         self.pth = yaw
-        print(f"update_odometry {(self.px, self.py, self.pth)}")
+        print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
 
 
     def arc_to(self, position):
