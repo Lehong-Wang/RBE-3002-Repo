@@ -139,29 +139,29 @@ class Lab2:
         initial_py = self.py
         
         # Store the message position
-        desiredPx = msg.pose.pose.position.x
-        desiredPy = msg.pose.pose.position.y
+        desired_px = msg.pose.pose.position.x
+        desired_py = msg.pose.pose.position.y
         quat_orig = msg.pose.pose.orientation
         quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
         ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
-        desiredPth = yaw
+        desired_pth = yaw
         print(f"PoseStamped {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
         
         # Calculate the rotation needed based on DESIRED POSITION
-        desiredPos_pth = (initial_pth + desiredPth) % (2*math.pi) - math.pi
+        desired_pos_pth = (initial_pth + desired_pth) % (2*math.pi) - math.pi
         
         # Call rotate()
-        rotate(desiredPos_pth, 0.5)
+        rotate(desired_pos_pth, 0.5)
         
         # Calculate the distance needed based on desired position
-        target_distance = abs(math.sqrt(desiredPx - initial_px) ** 2 + (desiredPy - initial_py) ** 2)
+        target_distance = abs(math.sqrt(desired_px - initial_px) ** 2 + (desired_py - initial_py) ** 2)
 
         # Call drive()
         drive(target_distance, 0.5)
         
         # Calculate the rest of the rotation needed
-        currentPth = self.pth
-        target_pth = (currentPth + desiredPth) % (2*math.pi) - math.pi
+        current_pth = self.pth
+        target_pth = (current_pth + desired_pth) % (2*math.pi) - math.pi
         
         # Call rotate
         rotate(target_pth, 0.5)
