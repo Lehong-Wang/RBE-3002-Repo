@@ -83,7 +83,7 @@ class Lab2:
         tolerance = 0.01
 
         # Send the speed
-        self.send_speed(linear_speed, 0)
+        # self.send_speed(linear_speed, 0)
 
         # If reached desired distance
         while (error > tolerance):
@@ -111,20 +111,22 @@ class Lab2:
         # process input
         aspeed = abs(aspeed)    # speed is positive
         angle = (angle + math.pi) % (2*math.pi) - math.pi   # make angle (-pi, pi)
+        # angle = (angle + math.pi) % (2*math.pi)   # make angle (0, 2*pi)
         # go reverse when angle < 0
         if angle < 0:
             aspeed = - aspeed
+        print(f"@rotate\t Rotate {angle}")
         target_pth = (maped_init_pth + angle) % (2*math.pi) - math.pi
         error = float('inf')
-        tolerance = 0.1
+        tolerance = 0.05
 
         # If reached desired distance
         while (error > tolerance):
             error = abs(self.pth - target_pth)
-            #print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+            print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
 
-            #print(f"pth: {self.pth}, init: {(initial_pth)}, target: {target_pth}")
-            #print(f"error: {error}")
+            print(f"pth: {self.pth}, init: {(initial_pth)}, target: {target_pth}")
+            print(f"error: {error}")
             self.send_speed(0, aspeed)
             rospy.sleep(0.05)
         # Stop the robot
@@ -155,33 +157,45 @@ class Lab2:
         ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
         desired_pth = yaw
         print(f"PoseStamped {(round(desired_px,3), round(desired_py,3), round(desired_pth,3))}")
+        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
         
         # Calculate the rotation needed based on DESIRED POSITION
         x_change = desired_px - initial_px
         y_change = desired_py - initial_py
-        desired_angle = math.atan(y_change/x_change)
+        desired_angle = math.atan2(y_change, x_change)
         # desired_pos_pth = (mapped_init_pth + desired_angle) % (2*math.pi) - math.pi
         
         
         # Call rotate()
         # self.rotate(desired_pos_pth, 0.5)
-        self.rotate(desired_angle+initial_pth, 0.5)
-        rospy.sleep(0.05)
+        print(f"Rotating {desired_angle-self.pth}")
+        self.rotate(desired_angle-self.pth, 0.5)
+        self.send_speed(0, 0)
+        rospy.sleep(0.5)
+        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
         
         # Calculate the distance needed based on desired position
         target_distance = math.sqrt((desired_px - initial_px) ** 2 + (desired_py - initial_py) ** 2)
-        print(f'Distnace: {target_distance}')
+        print(f'targe Distnace: {target_distance}')
         # Call drive()
-        self.drive(target_distance, 0.5)
+        self.drive(target_distance, 0.1)
+        self.send_speed(0, 0)
+        rospy.sleep(0.5)
+        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
         
         # Calculate the rest of the rotation needed
-        current_pth = self.pth
-        mapped_curr_pth = current_pth + math.pi
-        target_pth = (mapped_curr_pth + desired_pth) % (2*math.pi) - math.pi
-        
+
+        self.send_speed(0, 0)
         # Call rotate
-        self.rotate(target_pth, 0.5)
-        rospy.sleep(0.05)
+        print(f"Rotating {desired_pth-self.pth}")
+        self.rotate(desired_pth-self.pth, 0.5)
+        self.send_speed(0, 0)
+        rospy.sleep(0.5)
+        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+
+        print(f"Finished\nInitial{(initial_px, initial_py, initial_pth)}")
+        print(f"Final{(self.px, self.py, self.pth)}")
+        print(f"Goal {(desired_px, desired_py, desired_pth)}")
 
 
     def update_odometry(self, msg):
@@ -228,7 +242,7 @@ class Lab2:
         print("Sleep")
         rospy.sleep(1)
         print("Wake up")
-        self.rotate(-3*math.pi/2, -0.2)
+        self.rotate(-21*math.pi/2, -0.2)
         # while not rospy.is_shutdown():
         #     self.send_speed(0,0.5)
         # self.drive(0.3,0.1)
