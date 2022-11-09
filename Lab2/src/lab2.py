@@ -81,7 +81,6 @@ class Lab2:
         initial_py = self.py
         error = float('inf')
         tolerance = 0.01
-        dist_driven = 0
 
         # Send the speed
         self.send_speed(linear_speed, 0)
@@ -109,18 +108,15 @@ class Lab2:
         # Save the initial pose
         initial_pth = self.pth
         maped_init_pth = initial_pth + math.pi
-
         # process input
         aspeed = abs(aspeed)    # speed is positive
         angle = (angle + math.pi) % (2*math.pi) - math.pi   # make angle (-pi, pi)
         # go reverse when angle < 0
         if angle < 0:
             aspeed = - aspeed
-        
         target_pth = (maped_init_pth + angle) % (2*math.pi) - math.pi
         error = float('inf')
         tolerance = 0.1
-
 
         # If reached desired distance
         while (error > tolerance):
@@ -232,9 +228,7 @@ class Lab2:
         print("Sleep")
         rospy.sleep(1)
         print("Wake up")
-        #message = 'header: {seq: 1, stamp: 1073, frame_id: base_footprint}, pose: {position:  {x: 0.48, y: 0.608, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.545, w:0.838}}}}'
-        #self.go_to()
-        #self.rotate(3, -0.2)
+        self.rotate(-3*math.pi/2, -0.2)
         # while not rospy.is_shutdown():
         #     self.send_speed(0,0.5)
         # self.drive(0.3,0.1)
