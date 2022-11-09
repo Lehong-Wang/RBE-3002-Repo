@@ -14,29 +14,25 @@ class Lab2:
         """
         Class constructor
         """
-        ### REQUIRED CREDIT
         ### Initialize node, name it 'lab2'
-        # TODO
         rospy.init_node('lab2')
+        
         ### Tell ROS that this node publishes Twist messages on the '/cmd_vel' topic
-        # TODO
         self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+        
         ### Tell ROS that this node subscribes to Odometry messages on the '/odom' topic
         ### When a message is received, call self.update_odometry
-        # TODO
         self.sub_odom = rospy.Subscriber('/odom', Odometry, self.update_odometry)
+        
         ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
         ### When a message is received, call self.go_to
-        # TODO
         self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
 
-        self.msg_cmd_vel = Twist()
-        
-        # self.pose = Point()
+        self.msg_cmd_vel = Twist() # Make a new Twist message
         
         self.rate = rospy.Rate(10) # 10hz
 
-        # robot pos
+        # Robot pos
         self.px = 0
         self.py = 0
         self.pth = 0
@@ -50,21 +46,20 @@ class Lab2:
         :param linear_speed  [float] [m/s]   The forward linear speed.
         :param angular_speed [float] [rad/s] The angular speed for rotating around the body center.
         """
-        ### REQUIRED CREDIT
-        ### Make a new Twist message
-        # TODO
         # Linear velocity
         self.msg_cmd_vel.linear.x = linear_speed
         self.msg_cmd_vel.linear.y = 0
         self.msg_cmd_vel.linear.z = 0.0
+        
         # Angular velocity
         self.msg_cmd_vel.angular.x = 0.0
         self.msg_cmd_vel.angular.y = 0.0
         self.msg_cmd_vel.angular.z = angular_speed
+        
         ### Publish the message
-        # TODO
         self.pub.publish(self.msg_cmd_vel)
         self.rate.sleep()
+        
         # print(f"calling send_speed {(linear_speed, angular_speed)}")
 
     
@@ -75,22 +70,20 @@ class Lab2:
         :param distance     [float] [m]   The distance to cover.
         :param linear_speed [float] [m/s] The forward linear speed.
         """
-        ### REQUIRED CREDIT
         # Save the initial pose
         initial_px = self.px
         initial_py = self.py
+        
+        # Create variables
         error = float('inf')
         tolerance = 0.01
 
-        # Send the speed
-        # self.send_speed(linear_speed, 0)
-
         # If reached desired distance
         while (error > tolerance):
-            error = distance - math.sqrt((self.px - initial_px) ** 2 + (self.py - initial_py) ** 2)
+            error = distance - math.sqrt((self.px-initial_px)**2 + (self.py-initial_py)**2)
             #print(f"Px: {self.px}, py: {self.py}, init: {(initial_px, initial_py)}")
             #print(f"error: {error}")
-            self.send_speed(linear_speed, 0)
+            self.send_speed(linear_speed, 0) # Send speed
             rospy.sleep(0.05)
         # Stop the robot
         self.send_speed(0, 0)
@@ -104,19 +97,22 @@ class Lab2:
         :param angle         [float] [rad]   The distance to cover.
         :param angular_speed [float] [rad/s] The angular speed.
         """
-        ### REQUIRED CREDIT
         # Save the initial pose
         initial_pth = self.pth
-        maped_init_pth = initial_pth + math.pi
-        # process input
+        mapped_init_pth = initial_pth + math.pi
+        
+        # Process input
         aspeed = abs(aspeed)    # speed is positive
-        angle = (angle + math.pi) % (2*math.pi) - math.pi   # make angle (-pi, pi)
-        # angle = (angle + math.pi) % (2*math.pi)   # make angle (0, 2*pi)
-        # go reverse when angle < 0
+        angle = (angle+math.pi) % (2*math.pi) - math.pi   # make angle (-pi, pi)
+        # angle = (angle+math.pi) % (2*math.pi)   # make angle (0, 2*pi)
+        
+        # Go reverse when angle < 0
         if angle < 0:
-            aspeed = - aspeed
+            aspeed = -aspeed
         print(f"@rotate\t Rotate {angle}")
-        target_pth = (maped_init_pth + angle) % (2*math.pi) - math.pi
+        
+        # Create variables
+        target_pth = (mapped_init_pth+angle) % (2*math.pi) - math.pi
         error = float('inf')
         tolerance = 0.05
 
@@ -140,14 +136,10 @@ class Lab2:
         This method is a callback bound to a Subscriber.
         :param msg [PoseStamped] The target pose.
         """
-        ### REQUIRED CREDIT
         # Save the initial pose
         initial_pth = self.pth
-        mapped_init_pth = initial_pth + math.pi
         initial_px = self.px
         initial_py = self.py
-
-
         
         # Store the message position
         desired_px = msg.pose.position.x
@@ -159,40 +151,35 @@ class Lab2:
         print(f"PoseStamped {(round(desired_px,3), round(desired_py,3), round(desired_pth,3))}")
         print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
         
-        # Calculate the rotation needed based on DESIRED POSITION
+        # Calculate the rotation needed based on desired position
         x_change = desired_px - initial_px
         y_change = desired_py - initial_py
-        desired_angle = math.atan2(y_change, x_change)
-        # desired_pos_pth = (mapped_init_pth + desired_angle) % (2*math.pi) - math.pi
-        
+        angle = math.atan2(y_change, x_change)
         
         # Call rotate()
-        # self.rotate(desired_pos_pth, 0.5)
-        print(f"Rotating {desired_angle-self.pth}")
-        self.rotate(desired_angle-self.pth, 0.5)
+        print(f"Rotating {angle - self.pth}")
+        self.rotate(angle - self.pth, 0.5)
         self.send_speed(0, 0)
         rospy.sleep(0.5)
         print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
         
         # Calculate the distance needed based on desired position
-        target_distance = math.sqrt((desired_px - initial_px) ** 2 + (desired_py - initial_py) ** 2)
-        print(f'targe Distnace: {target_distance}')
+        target_distance = math.sqrt((desired_px-initial_px)**2 + (desired_py-initial_py)**2)
+        print(f'target Distnace: {target_distance}')
+        
         # Call drive()
         self.drive(target_distance, 0.1)
         self.send_speed(0, 0)
         rospy.sleep(0.5)
         print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
         
-        # Calculate the rest of the rotation needed
-
-        self.send_speed(0, 0)
-        # Call rotate
-        print(f"Rotating {desired_pth-self.pth}")
-        self.rotate(desired_pth-self.pth, 0.5)
+        # Call rotate for the rest of the rotation needed
+        print(f"Rotating {desired_pth - self.pth}")
+        self.rotate(desired_pth - self.pth, 0.5)
         self.send_speed(0, 0)
         rospy.sleep(0.5)
+        
         print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
-
         print(f"Finished\nInitial{(initial_px, initial_py, initial_pth)}")
         print(f"Final{(self.px, self.py, self.pth)}")
         print(f"Goal {(desired_px, desired_py, desired_pth)}")
@@ -204,8 +191,6 @@ class Lab2:
         This method is a callback bound to a Subscriber.
         :param msg [Odometry] The current odometry information.
         """
-        ### REQUIRED CREDIT
-        # TODO
         self.px = msg.pose.pose.position.x
         self.py = msg.pose.pose.position.y
         quat_orig = msg.pose.pose.orientation
