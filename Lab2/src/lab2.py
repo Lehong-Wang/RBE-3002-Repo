@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import math
+import warnings
 
 import rospy
 from nav_msgs.msg import Odometry
@@ -36,7 +37,12 @@ class Lab2:
         self.px = 0
         self.py = 0
         self.pth = 0
+
+        # Timer object, get second with .secs , nanoseconds with .nsecs 
+        self.start_timer = rospy.get_rostime()
+
         print("finished init")
+
 
 
 
@@ -46,25 +52,40 @@ class Lab2:
         :param linear_speed  [float] [m/s]   The forward linear speed.
         :param angular_speed [float] [rad/s] The angular speed for rotating around the body center.
         """
+
+        # at most any speed, completely off track by 5 m
+        # at 0.5 m/s, off by 3m
+        # at 0.6 m/s, off by 1m
+        # at 0.7 m/s, uncontrolable
+        # recomand speed <= 0.4 m/s
+        if linear_speed > 0.5:
+            warnings.warn("Linear Speed above 0.5 m/s is not recommended.")
+        # Length between wheel is 160 mm
+        # 0.4 linear speed -> 5 rad/s
+        # at 10 rad/s, some off set, roatation sometimes not stable
+        # at 20 rad/s, uncontrolable
+        if angular_speed > 10:
+            warnings.warn("Angular Speed above 10 rad/s is not recommended.")
+
         # Linear velocity
         self.msg_cmd_vel.linear.x = linear_speed
         self.msg_cmd_vel.linear.y = 0.0
         self.msg_cmd_vel.linear.z = 0.0
-        
+
         # Angular velocity
         self.msg_cmd_vel.angular.x = 0.0
         self.msg_cmd_vel.angular.y = 0.0
         self.msg_cmd_vel.angular.z = angular_speed
-        
+
         ### Publish the message
         self.pub.publish(self.msg_cmd_vel)
         print(self.msg_cmd_vel)
         self.rate.sleep()
-        
+
         # print(f"calling send_speed {(linear_speed, angular_speed)}")
 
-    
-        
+
+
     def drive(self, distance, linear_speed):
         """
         Drives the robot in a straight line.
@@ -201,14 +222,66 @@ class Lab2:
         # print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
 
 
-    def arc_to(self, position):
+    def arc_to(self, msg):
         """
         Drives to a given position in an arc.
         :param msg [PoseStamped] The target pose.
         """
-        ### EXTRA CREDIT
-        # TODO
-        pass # delete this when you implement your code
+        # Store the message position
+        desired_px = msg.pose.position.x
+        desired_py = msg.pose.position.y
+        quat_orig = msg.pose.orientation
+        quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
+        ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
+        desired_pth = yaw
+
+        initial_px = self.px
+        initial_py = self.py
+        initial_pth = self.pth
+
+        test_arc((desired_px, desired_py), 10)
+
+    def test_arc(self, pose, time):
+        start_t = rospy.get_rostime().secs
+        self.short_arc(pose, time)
+        while (rospy.get_rostime().secs - start_t < time+1):
+            # print(rospy.get_rostime().secs - self.start_timer.secs)
+            pass
+        self.send_speed(0, 0)
+
+    def short_arc(self, pose_x_y, time):
+        """
+        drive to target with short arc
+        a lot of aprocimation, work better for straighter path
+        :param [(x,y)] The target pose.
+        :param [s] total time in second
+        """
+        x2, y2 = pose_x_y
+
+        x1 = self.px
+        y1 = self.py
+        theta = self.pth
+
+        # aprocimation arc with straight line
+        displacement = math.sqrt((y2-y1)**2 + (x2-x1)**2)
+        print(f"displacement {displacement}")
+        # linear_speed = displacement / time
+        # angle between start-goal line and horizontal line
+        line_angle = math.atan2(y2-y1, x2-x1)
+        # angle between start orientation and goal orientation
+        # TODO 
+        # how to add two angles properly? (-pi, pi)
+        rotaional_displacement = 2 * (line_angle - theta)
+        print(f"rotational_displacement {rotaional_displacement}")
+
+        raduis = (displacement/2) / (math.sin(rotaional_displacement/2) + 0.001)
+        print(f"raduis {raduis}")
+        arc_length = raduis * rotaional_displacement
+        print(f"arc_length {arc_length}")
+        linear_speed = arc_length / time
+        angular_speed = rotaional_displacement / time
+        print(f"speed {(linear_speed, angular_speed)}")
+        self.send_speed(linear_speed, angular_speed)
 
 
 
@@ -249,10 +322,25 @@ class Lab2:
         print("Sleep")
         rospy.sleep(1)
         print("Wake up")
+        new_timer = rospy.Time.from_sec(0)
+
+
+        self.test_arc((0.2,-0.5), 10)
+
+        # while not rospy.is_shutdown():
+        #     now = new_timer.now()
+        #     # now = rospy.get_rostime()
+        #     # rospy.loginfo("Current time", now.secs, now.nsecs)
+        #     print("Current time", now.secs, now.nsecs)
+        #     print(f"Timer {rospy.get_rostime().secs - self.start_timer.secs}")
+        #     rospy.sleep(0.5)
+
+        # self.short_arc((1,-1), 3)
+
         # self.rotate(-21*math.pi/2, -0.2)
         # while not rospy.is_shutdown():
         #     self.send_speed(0,0.5)
-        self.smooth_drive(3,0.2)
+        # self.smooth_drive(3,0.2)
         # while not rospy.is_shutdown():
         # # self.send_speed(0.5, 1)
         #     self.drive(1, 1)
