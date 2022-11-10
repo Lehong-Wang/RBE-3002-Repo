@@ -19,17 +19,28 @@ class PathPlanner:
         ### REQUIRED CREDIT
         ## Initialize the node and call it "path_planner"
         rospy.init_node("path_planner")
+        
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
         # TODO
+        plan_path = rospy.Service('plan_path', GetPlan, self.plan_path)
+        
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
         # TODO
+        self.pub = rospy.Publisher('/path_planner/cspace', GridCells, queue_size=10)
+        
         ## Create publishers for A* (expanded cells, frontier, ...)
-        ## Choose a the topic names, the message type is GridCells
+        ## Choose the topic names, the message type is GridCells
         # TODO
+        self.expanded_pub = rospy.Publisher('/path_planner/expanded', GridCells, queue_size=10)
+        self.frontier_pub = rospy.Publisher('/path_planner/frontier', GridCells, queue_size=10)
+        self.unexplored_pub = rospy.Publisher('/path_planner/unexplored', GridCells, queue_size=10)
+        
         ## Initialize the request counter
         # TODO
+        request = 0
+        
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
@@ -45,7 +56,7 @@ class PathPlanner:
         :return  [int] The index.
         """
         ### REQUIRED CREDIT
-        pass
+        return y*mapdata.width + x
 
 
 
@@ -60,7 +71,7 @@ class PathPlanner:
         :return   [float]        The distance.
         """
         ### REQUIRED CREDIT
-        pass
+        return math.sqrt((x1-x2)**2 + (y1-y2)**2)
         
 
 
@@ -74,8 +85,10 @@ class PathPlanner:
         :return        [Point]         The position in the world.
         """
         ### REQUIRED CREDIT
-        pass
-
+        point = Point()
+        point.x = (x+0.5) * mapdata.resolution + mapdata.Pose.point.x
+        point.y = (y+0.5) * mapdata.resolution + mapdata.Pose.point.y
+        return point
 
         
     @staticmethod
@@ -87,8 +100,9 @@ class PathPlanner:
         :return        [(int,int)]     The cell position as a tuple.
         """
         ### REQUIRED CREDIT
-        pass
-
+        gc_x = int((wp.x-mapdata.Pose.Point.x) / mapdata.resolution)
+        gc_y = int((wp.y-mapdata.Pose.Point.y) / mapdata.resolution)
+        return (gc_x, gc_y)
 
         
     @staticmethod
