@@ -114,7 +114,15 @@ class PathPlanner:
         :return        [[PoseStamped]] The path as a list of PoseStamped (world coordinates).
         """
         ### REQUIRED CREDIT
-        pass
+        world = []
+        newPose = PoseStamped()
+        for i in range(len(path)):
+          # Convert path tuple to world coord (converted is a Point())
+          converted = grid_to_world(mapdata, path[i][0], path[i][1])
+          newPose.Pose.Point.x = converted.x
+          newPose.Pose.Point.y = converted.y
+          world[i] = newPose
+        return world
 
     
 
