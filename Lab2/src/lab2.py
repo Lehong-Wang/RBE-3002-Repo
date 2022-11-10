@@ -48,7 +48,7 @@ class Lab2:
         """
         # Linear velocity
         self.msg_cmd_vel.linear.x = linear_speed
-        self.msg_cmd_vel.linear.y = 0
+        self.msg_cmd_vel.linear.y = 0.0
         self.msg_cmd_vel.linear.z = 0.0
         
         # Angular velocity
@@ -58,6 +58,7 @@ class Lab2:
         
         ### Publish the message
         self.pub.publish(self.msg_cmd_vel)
+        print(self.msg_cmd_vel)
         self.rate.sleep()
         
         # print(f"calling send_speed {(linear_speed, angular_speed)}")
@@ -217,20 +218,41 @@ class Lab2:
         :param distance     [float] [m]   The distance to cover.
         :param linear_speed [float] [m/s] The maximum forward linear speed.
         """
-        ### EXTRA CREDIT
-        # TODO
-        pass # delete this when you implement your code
+        # acceleration distance is 0.1m or 40% of total distance
+        acc_distance = min(0.5, 0.4*distance)
 
+        initial_px = self.px
+        initial_py = self.py
+        error = float('inf')
+        tolerance = 0.01
+
+        # If reached desired distance
+        while (error > tolerance):
+            current_distance = math.sqrt((self.px-initial_px) ** 2 + (self.py-initial_py) ** 2)
+            error = distance - current_distance
+            #print(f"Px: {round(self.px,3)}, py: {round(self.py,3)}, init: {(initial_px, initial_py)}")
+            #print(f"error: {error}")
+
+            # fraction of covered distance compared to acc_distance, start and end considered
+            dist_fraction = min(current_distance, distance-current_distance)/ acc_distance
+            dist_fraction = max(dist_fraction, 0)
+            # speed during acceleration is sqrt(dis_frac) * speed + base_speed
+            # also smaller than target speed
+            acc_speed = min(math.sqrt(dist_fraction) * linear_speed + 0.05, linear_speed)
+            self.send_speed(acc_speed, 0)
+            rospy.sleep(0.1)
+        # Stop the robot
+        self.send_speed(0, 0)
 
 
     def run(self):
         print("Sleep")
         rospy.sleep(1)
         print("Wake up")
-        self.rotate(-21*math.pi/2, -0.2)
+        # self.rotate(-21*math.pi/2, -0.2)
         # while not rospy.is_shutdown():
         #     self.send_speed(0,0.5)
-        # self.drive(0.3,0.1)
+        self.smooth_drive(3,0.2)
         # while not rospy.is_shutdown():
         # # self.send_speed(0.5, 1)
         #     self.drive(1, 1)
