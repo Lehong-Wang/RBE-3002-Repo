@@ -3,11 +3,12 @@
 import math
 import warnings
 
+from bezier import *
 import rospy
+from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseStamped
-from geometry_msgs.msg import Twist
 from tf.transformations import euler_from_quaternion
+
 
 class Lab2:
 
@@ -27,7 +28,8 @@ class Lab2:
         
         ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
         ### When a message is received, call self.go_to
-        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
+        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
+        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
 
         self.msg_cmd_vel = Twist() # Make a new Twist message
         
@@ -59,13 +61,13 @@ class Lab2:
         # at 0.7 m/s, uncontrolable
         # recomand speed <= 0.4 m/s
         if linear_speed > 0.5:
-            warnings.warn("Linear Speed above 0.5 m/s is not recommended.")
+            warnings.warn(f"Linear Speed above 0.5 m/s is not recommended.\nCurrent: {linear_speed}")
         # Length between wheel is 160 mm
         # 0.4 linear speed -> 5 rad/s
         # at 10 rad/s, some off set, roatation sometimes not stable
         # at 20 rad/s, uncontrolable
         if angular_speed > 10:
-            warnings.warn("Angular Speed above 10 rad/s is not recommended.")
+            warnings.warn(f"Angular Speed above 10 rad/s is not recommended.\nCurrent: {angular_speed}")
 
         # Linear velocity
         self.msg_cmd_vel.linear.x = linear_speed
@@ -79,7 +81,7 @@ class Lab2:
 
         ### Publish the message
         self.pub.publish(self.msg_cmd_vel)
-        print(self.msg_cmd_vel)
+        # print(self.msg_cmd_vel)
         self.rate.sleep()
 
         # print(f"calling send_speed {(linear_speed, angular_speed)}")
@@ -141,10 +143,10 @@ class Lab2:
         # If reached desired distance
         while (error > tolerance):
             error = abs(self.pth - target_pth)
-            print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+            # print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
 
-            print(f"pth: {self.pth}, init: {(initial_pth)}, target: {target_pth}")
-            print(f"error: {error}")
+            # print(f"pth: {self.pth}, init: {(initial_pth)}, target: {target_pth}")
+            # print(f"error: {error}")
             self.send_speed(0, aspeed)
             rospy.sleep(0.05)
         # Stop the robot
@@ -239,7 +241,7 @@ class Lab2:
         initial_py = self.py
         initial_pth = self.pth
 
-        test_arc((desired_px, desired_py), 10)
+        self.test_arc((desired_px, desired_py), 10)
 
     def test_arc(self, pose, time):
         start_t = rospy.get_rostime().secs
@@ -264,24 +266,94 @@ class Lab2:
 
         # aprocimation arc with straight line
         displacement = math.sqrt((y2-y1)**2 + (x2-x1)**2)
-        print(f"displacement {displacement}")
-        # linear_speed = displacement / time
+        # print(f"displacement {displacement}")
+
         # angle between start-goal line and horizontal line
         line_angle = math.atan2(y2-y1, x2-x1)
         # angle between start orientation and goal orientation
         # TODO 
         # how to add two angles properly? (-pi, pi)
         rotaional_displacement = 2 * (line_angle - theta)
-        print(f"rotational_displacement {rotaional_displacement}")
+        # print(f"rotational_displacement {rotaional_displacement}")
 
         raduis = (displacement/2) / (math.sin(rotaional_displacement/2) + 0.001)
-        print(f"raduis {raduis}")
+        # print(f"raduis {raduis}")
         arc_length = raduis * rotaional_displacement
-        print(f"arc_length {arc_length}")
+        # print(f"arc_length {arc_length}")
         linear_speed = arc_length / time
         angular_speed = rotaional_displacement / time
-        print(f"speed {(linear_speed, angular_speed)}")
+        # print(f"speed {(linear_speed, angular_speed)}")
         self.send_speed(linear_speed, angular_speed)
+
+
+
+
+    def run_bezier_traj(self, msg):
+        # TODO linear speed maye changable? maybe not
+        linear_speed = 0.1
+
+        x1 = self.px
+        y1 = self.py
+        th1 = self.pth
+        
+        x2 = msg.pose.position.x
+        y2 = msg.pose.position.y
+        quat_orig = msg.pose.orientation
+        quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
+        ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
+        th2 = yaw
+
+        bezier_traj, total_time = self.bezier_traj(x1,y1,th1, x2,y2,th2, linear_speed)
+
+        now = rospy.get_rostime()
+        # time here is rounded to 3 digits
+        t0 = now.secs + int(str(now.nsecs)[:3]) * 0.001
+        t = t0
+        # TODO changed time
+        while (t < t0 + total_time*1.2):
+            x_t, y_t = bezier_traj.calc_curve(t-t0)
+            self.short_arc((x_t, y_t), 0.5)
+            rospy.sleep(0.1)
+            now = rospy.get_rostime()
+            t = now.secs + int(str(now.nsecs)[:3]) * 0.001
+
+        self.send_speed(0,0)
+
+
+
+
+
+    def bezier_traj(self, x1, y1, th1, x2, y2, th2, linear_speed):
+        """
+        take in start and end pose (x,y,theta) and linear speed
+        return a time dependent bezier trajectory and its total time
+        """
+
+        # TODO case of only one control point needed
+        # TODO better calculation for control dist for smoother curve
+
+        control_dist = math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+        # control point 1 is control_dist alone th1
+        p1x = x1 + math.cos(th1) * control_dist
+        p1y = y1 + math.sin(th1) * control_dist
+        # p2 is dist alone negative th2
+        p2x = x2 - math.cos(th2) * control_dist
+        p2y = y2 - math.sin(th2) * control_dist
+
+        # TODO replace this with arc length
+        total_time = control_dist / linear_speed
+
+        bezier_curve = BezierCurve(x1,y1, p1x,p1y, p2x,p2y, x2,y2, total_time)
+
+        # print(bezier_curve.p0x)
+        # print(bezier_curve)
+        bezier_curve.plot()
+
+        return (bezier_curve, total_time)
+
+
+
+
 
 
 
@@ -322,10 +394,11 @@ class Lab2:
         print("Sleep")
         rospy.sleep(1)
         print("Wake up")
-        new_timer = rospy.Time.from_sec(0)
+        # new_timer = rospy.Time.from_sec(0)
 
 
-        self.test_arc((0.2,-0.5), 10)
+        # self.bezier_traj(1,2,3,4,5,6,7)
+        # self.test_arc((0.2,-0.5), 10)
 
         # while not rospy.is_shutdown():
         #     now = new_timer.now()
