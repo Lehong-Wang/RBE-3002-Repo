@@ -61,13 +61,15 @@ class Lab2:
         # at 0.7 m/s, uncontrolable
         # recomand speed <= 0.4 m/s
         if linear_speed > 0.5:
-            warnings.warn(f"Linear Speed above 0.5 m/s is not recommended.\nCurrent: {linear_speed}")
+            warn_str = f"Linear Speed above 0.5 m/s is not recommended.\nCurrent: {linear_speed}"
+            warnings.warn(warn_str)
         # Length between wheel is 160 mm
         # 0.4 linear speed -> 5 rad/s
         # at 10 rad/s, some off set, roatation sometimes not stable
         # at 20 rad/s, uncontrolable
         if angular_speed > 10:
-            warnings.warn(f"Angular Speed above 10 rad/s is not recommended.\nCurrent: {angular_speed}")
+            warn_str = f"Angular Speed above 10 rad/s is not recommended.\nCurrent: {angular_speed}"
+            warnings.warn(warn_str)
 
         # Linear velocity
         self.msg_cmd_vel.linear.x = linear_speed
@@ -224,6 +226,11 @@ class Lab2:
         # print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
 
 
+
+################################ trajectory control ################################
+
+
+
     def arc_to(self, msg):
         """
         Drives to a given position in an arc.
@@ -243,13 +250,18 @@ class Lab2:
 
         self.test_arc((desired_px, desired_py), 10)
 
+
     def test_arc(self, pose, time):
-        start_t = rospy.get_rostime().secs
+        start_t = self.get_time()
         self.short_arc(pose, time)
-        while (rospy.get_rostime().secs - start_t < time+1):
+        print(f"Start pose: {(self.px,self.py,self.pth)}")
+
+        while (self.get_time() < start_t + time):
             # print(rospy.get_rostime().secs - self.start_timer.secs)
             pass
         self.send_speed(0, 0)
+        print(f"End pose: {(self.px,self.py,self.pth)}\n")
+
 
     def short_arc(self, pose_x_y, time):
         """
@@ -274,15 +286,21 @@ class Lab2:
         # TODO 
         # how to add two angles properly? (-pi, pi)
         rotaional_displacement = 2 * (line_angle - theta)
+        print(f"Old rot: {rotaional_displacement}")
+        rotaional_displacement = 2 * self.merge_angle("sub", line_angle, theta)
+        print(f"New rot: {rotaional_displacement}")
+
+        # rotaional_displacement = (rotaional_displacement + math.pi) % (2*math.pi) - math.pi
         # print(f"rotational_displacement {rotaional_displacement}")
 
+        # raduis = (displacement/2) / (math.sin(abs(rotaional_displacement/2)) + 0.001)
         raduis = (displacement/2) / (math.sin(rotaional_displacement/2) + 0.001)
-        # print(f"raduis {raduis}")
+        print(f"raduis {raduis}")
         arc_length = raduis * rotaional_displacement
-        # print(f"arc_length {arc_length}")
+        print(f"arc_length {arc_length}")
         linear_speed = arc_length / time
         angular_speed = rotaional_displacement / time
-        # print(f"speed {(linear_speed, angular_speed)}")
+        print(f"speed {(linear_speed, angular_speed)}")
         self.send_speed(linear_speed, angular_speed)
 
 
@@ -305,17 +323,16 @@ class Lab2:
 
         bezier_traj, total_time = self.bezier_traj(x1,y1,th1, x2,y2,th2, linear_speed)
 
-        now = rospy.get_rostime()
         # time here is rounded to 3 digits
-        t0 = now.secs + int(str(now.nsecs)[:3]) * 0.001
+        t0 = self.get_time()
         t = t0
+
         # TODO changed time
         while (t < t0 + total_time*1.2):
             x_t, y_t = bezier_traj.calc_curve(t-t0)
             self.short_arc((x_t, y_t), 0.5)
-            rospy.sleep(0.1)
-            now = rospy.get_rostime()
-            t = now.secs + int(str(now.nsecs)[:3]) * 0.001
+            rospy.sleep(0.4)
+            t = self.get_time()
 
         self.send_speed(0,0)
 
@@ -389,6 +406,39 @@ class Lab2:
         # Stop the robot
         self.send_speed(0, 0)
 
+################################### util #####################################
+
+    def merge_angle(self, operation, th1, th2):
+        """
+        do operation (+/-) on two angle in range (-pi, pi)
+        """
+
+        maped_th1 = th1 + math.pi
+        maped_th2 = th2 + math.pi
+
+        if operation == "add":
+            ret = (maped_th1 + maped_th2) % math.pi - math.pi
+        elif operation == "sub":
+            ret = (maped_th1 - maped_th2) % math.pi - math.pi
+        else:
+            warn_str = f"Merge angle operation not recognized. Choose add or sub\n Given {operation}"
+            warnings.warn(warn_str)
+            return 0
+        return ret
+
+
+    def get_time(self, now=None):
+        """
+        Returns the time to 3 digits
+        Convert if given ros Timer object
+        """
+        if not now:
+            now = rospy.get_rostime()
+        time = now.secs + int(str(now.nsecs)[:3]) * 0.001
+        # print(f"get_time: {time}")
+        return time
+
+
 
     def run(self):
         print("Sleep")
@@ -396,6 +446,12 @@ class Lab2:
         print("Wake up")
         # new_timer = rospy.Time.from_sec(0)
 
+        # self.test_arc((-1,1),10)
+        # rospy.sleep(1)
+        # self.test_arc((1.5,1),20)
+        # rospy.sleep(1)
+        # self.test_arc((1,-1),10)
+        # rospy.sleep(1)
 
         # self.bezier_traj(1,2,3,4,5,6,7)
         # self.test_arc((0.2,-0.5), 10)
