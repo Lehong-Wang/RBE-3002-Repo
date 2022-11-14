@@ -2,6 +2,7 @@
 
 import math
 import warnings
+import numpy as np
 
 from bezier import *
 import rospy
@@ -438,6 +439,14 @@ class Lab2:
         # print(f"get_time: {time}")
         return time
 
+
+    def to_robot_frame_pose(self,x,y,th=None):
+        x0 = self.px
+        y0 = self.py
+        th0 = self.pth
+
+        trans_mat = np.matrix([])
+        # TODO 
 
 
     def run(self):
