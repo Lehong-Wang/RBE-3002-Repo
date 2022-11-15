@@ -41,6 +41,9 @@ class PathPlanner:
         # TODO
         request = 0
         
+        # Seq counter
+        seq = 0
+        
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
@@ -86,8 +89,8 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         point = Point()
-        point.x = (x+0.5) * mapdata.info.resolution + mapdata.info.Pose.point.x
-        point.y = (y+0.5) * mapdata.info.resolution + mapdata.info.Pose.point.y
+        point.x = (x+0.5) * mapdata.info.resolution + mapdata.info.origin.position.x
+        point.y = (y+0.5) * mapdata.info.resolution + mapdata.info.origin.position.y
         return point
 
         
@@ -100,8 +103,8 @@ class PathPlanner:
         :return        [(int,int)]     The cell position as a tuple.
         """
         ### REQUIRED CREDIT
-        gc_x = int((wp.x-mapdata.info.Pose.Point.x) / mapdata.info.resolution)
-        gc_y = int((wp.y-mapdata.info.Pose.Point.y) / mapdata.info.resolution)
+        gc_x = int((wp.x-mapdata.info.origin.position.x) / mapdata.info.resolution)
+        gc_y = int((wp.y-mapdata.info.origin.position.y) / mapdata.info.resolution)
         return (gc_x, gc_y)
 
         
@@ -119,8 +122,8 @@ class PathPlanner:
         for i in range(len(path)):
           # Convert path tuple to world coord (converted is a Point())
           converted = grid_to_world(mapdata, path[i][0], path[i][1])
-          newPose.Pose.Point.x = converted.x
-          newPose.Pose.Point.y = converted.y
+          newPose.pose.position.x = converted.x
+          newPose.pose.position.y = converted.y
           
           #Timestamp?
           
@@ -196,6 +199,8 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         rospy.loginfo("Calculating C-Space")
+        cspace = OccupancyGrid()
+        
         ## Go through each cell in the occupancy grid
         ## Inflate the obstacles where necessary
         # TODO
@@ -232,7 +237,18 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         rospy.loginfo("Returning a Path message")
-
+        
+        msg = Path() # Create path msg
+        
+        # Create msg header
+        msg.header.seq = self.seq
+        msg.header.stamp = rospy.Time.now()
+        msg.header.frame_id = 'map'
+        seq += 1
+        
+        msg.poses = PathPlanner.path_to_poses(mapdata, path) # Store poses using path_to_poses()
+        
+        return msg
 
         
     def plan_path(self, msg):
