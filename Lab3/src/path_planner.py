@@ -186,7 +186,11 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         rospy.loginfo("Requesting the map")
-
+        
+        rospy.wait_for_service('static_map') # Block until service is available
+        grid = rospy.ServiceProxy('static_map', GetMap)
+        
+        return grid().map
 
 
     def calc_cspace(self, mapdata, padding):
