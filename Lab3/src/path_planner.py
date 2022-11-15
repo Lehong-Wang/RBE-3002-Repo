@@ -119,15 +119,19 @@ class PathPlanner:
         ### REQUIRED CREDIT
         world = []
         newPose = PoseStamped()
-        for i in range(len(path)):
+        for i in range(len(path)-1):
           # Convert path tuple to world coord (converted is a Point())
-          converted = grid_to_world(mapdata, path[i][0], path[i][1])
+          converted = PathPlanner.grid_to_world(mapdata, path[i][0], path[i][1])
           newPose.pose.position.x = converted.x
           newPose.pose.position.y = converted.y
           
-          #Timestamp?
+          # Create msg header
+          msg.header.seq = self.seq
+          msg.header.stamp = rospy.Time.now()
+          msg.header.frame_id = 'path'
+          seq += 1
           
-          world[i] = newPose
+          world.append(newPose) # Append newPose to list of PoseStamped
         return world
 
     
@@ -144,9 +148,14 @@ class PathPlanner:
         :return        [boolean]       True if the cell is walkable, False otherwise
         """
         ### REQUIRED CREDIT
-        grid = grid_to_world(x, y)
+        walkable = False;
+        index = PathPlanner.grid_to_index(mapdata, x, y) # Converts the coordinates to indices in grid
+        if (index < mapdata.info.width and index > 0):
+          walkable = True
+        else:
+          walkable = False
         pass
-
+        
                
 
     @staticmethod
@@ -159,7 +168,16 @@ class PathPlanner:
         :return        [[(int,int)]]   A list of walkable 4-neighbors.
         """
         ### REQUIRED CREDIT
-        pass
+        walkable_neighbors = []
+        if (PathPlanner.is_cell_walkable(mapdata, x+1, y)):
+          walkable_neighbor.append(x+1, y)
+        elif (PathPlanner.is_cell_walkable(mapdata, x-1, y)):
+          walkable_neighbor.append(x-1, y)
+        elif (PathPlanner.is_cell_walkable(mapdata, x, y+1)):
+          walkable_neighbor.append(x, y+1)
+        elif (PathPlanner.is_cell_walkable(mapdata, x+1, y-1)):
+          walkable_neighbor.append(x, y-1)
+        return walkable_neighbors
 
     
     
@@ -173,7 +191,16 @@ class PathPlanner:
         :return        [[(int,int)]]   A list of walkable 8-neighbors.
         """
         ### REQUIRED CREDIT
-        pass
+        walkable_neighbors = neighbors_of_4(mapdata, x, y)
+        if (PathPlanner.is_cell_walkable(mapdata, x+1, y+1)):
+          walkable_neighbor.append(x+1, y+1)
+        elif (PathPlanner.is_cell_walkable(mapdata, x-1, y-1)):
+          walkable_neighbor.append(x-1, y-1)
+        elif (PathPlanner.is_cell_walkable(mapdata, x+1, y-1)):
+          walkable_neighbor.append(x+1, y-1)
+        elif (PathPlanner.is_cell_walkable(mapdata, x-1, y+1)):
+          walkable_neighbor.append(x-1, y+1)
+        return walkable_neighbors
 
     
     
