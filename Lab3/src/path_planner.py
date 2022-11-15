@@ -56,7 +56,7 @@ class PathPlanner:
         :return  [int] The index.
         """
         ### REQUIRED CREDIT
-        return y*mapdata.width + x
+        return y*mapdata.info.width + x
 
 
 
@@ -86,8 +86,8 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         point = Point()
-        point.x = (x+0.5) * mapdata.resolution + mapdata.Pose.point.x
-        point.y = (y+0.5) * mapdata.resolution + mapdata.Pose.point.y
+        point.x = (x+0.5) * mapdata.info.resolution + mapdata.info.Pose.point.x
+        point.y = (y+0.5) * mapdata.info.resolution + mapdata.info.Pose.point.y
         return point
 
         
@@ -100,8 +100,8 @@ class PathPlanner:
         :return        [(int,int)]     The cell position as a tuple.
         """
         ### REQUIRED CREDIT
-        gc_x = int((wp.x-mapdata.Pose.Point.x) / mapdata.resolution)
-        gc_y = int((wp.y-mapdata.Pose.Point.y) / mapdata.resolution)
+        gc_x = int((wp.x-mapdata.info.Pose.Point.x) / mapdata.info.resolution)
+        gc_y = int((wp.y-mapdata.info.Pose.Point.y) / mapdata.info.resolution)
         return (gc_x, gc_y)
 
         
@@ -121,6 +121,9 @@ class PathPlanner:
           converted = grid_to_world(mapdata, path[i][0], path[i][1])
           newPose.Pose.Point.x = converted.x
           newPose.Pose.Point.y = converted.y
+          
+          #Timestamp?
+          
           world[i] = newPose
         return world
 
@@ -138,6 +141,7 @@ class PathPlanner:
         :return        [boolean]       True if the cell is walkable, False otherwise
         """
         ### REQUIRED CREDIT
+        grid = grid_to_world(x, y)
         pass
 
                
