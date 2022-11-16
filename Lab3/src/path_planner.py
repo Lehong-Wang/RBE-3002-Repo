@@ -40,10 +40,7 @@ class PathPlanner:
         ## Initialize the request counter
         # TODO
         self.request = 0
-        
-        # Seq counter
-        self.seq = 0
-        
+
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
@@ -126,16 +123,16 @@ class PathPlanner:
           newPose.pose.position.y = converted.y
           
           # Create msg header
-          msg.header.seq = self.seq
-          msg.header.stamp = rospy.Time.now()
-          msg.header.frame_id = 'path'
-          seq += 1
+        #   mapdata.header.seq = self.seq
+          mapdata.header.stamp = rospy.Time.now()
+        #   mapdata.header.frame_id = 'path'
+        #   seq += 1
           
           world.append(newPose) # Append newPose to list of PoseStamped
         return world
 
     
-
+    # TESTED
     @staticmethod
     def is_cell_walkable(mapdata, x, y):
         """
@@ -153,17 +150,20 @@ class PathPlanner:
         # if (index < mapdata.info.width and index > 0):
         #   walkable = True
 
-        within_bound = x <= mapdata.info.width and \
-                        y <= mapdata.info.height and \
+        within_bound = x < mapdata.info.width and \
+                        y < mapdata.info.height and \
                             min(x,y) >= 0
 
         index = PathPlanner.grid_to_index(mapdata, x, y)
-        is_free = mapdata.data[index]
+        is_free = ~ mapdata.data[index]
+        # print(f"Walk {(x,y)}")
+        # print(within_bound)
+        # print(is_free)
 
         return within_bound & is_free
 
 
-
+    # TESTED
     @staticmethod
     def neighbors_of_4(mapdata, x, y):
         """
@@ -174,19 +174,20 @@ class PathPlanner:
         :return        [[(int,int)]]   A list of walkable 4-neighbors.
         """
         ### REQUIRED CREDIT
+        possible_neighbors = []
         walkable_neighbors = []
-        if (PathPlanner.is_cell_walkable(mapdata, x+1, y)):
-          walkable_neighbor.append(x+1, y)
-        elif (PathPlanner.is_cell_walkable(mapdata, x-1, y)):
-          walkable_neighbor.append(x-1, y)
-        elif (PathPlanner.is_cell_walkable(mapdata, x, y+1)):
-          walkable_neighbor.append(x, y+1)
-        elif (PathPlanner.is_cell_walkable(mapdata, x+1, y-1)):
-          walkable_neighbor.append(x, y-1)
+        possible_neighbors.append((x+1, y))
+        possible_neighbors.append((x-1, y))
+        possible_neighbors.append((x, y+1))
+        possible_neighbors.append((x, y-1))
+
+        for neighbor in possible_neighbors:
+            if (PathPlanner.is_cell_walkable(mapdata, neighbor[0], neighbor[1])):
+                walkable_neighbors.append(neighbor)
         return walkable_neighbors
 
     
-    
+    # TESTED
     @staticmethod
     def neighbors_of_8(mapdata, x, y):
         """
@@ -197,19 +198,21 @@ class PathPlanner:
         :return        [[(int,int)]]   A list of walkable 8-neighbors.
         """
         ### REQUIRED CREDIT
-        walkable_neighbors = neighbors_of_4(mapdata, x, y)
-        if (PathPlanner.is_cell_walkable(mapdata, x+1, y+1)):
-          walkable_neighbor.append(x+1, y+1)
-        elif (PathPlanner.is_cell_walkable(mapdata, x-1, y-1)):
-          walkable_neighbor.append(x-1, y-1)
-        elif (PathPlanner.is_cell_walkable(mapdata, x+1, y-1)):
-          walkable_neighbor.append(x+1, y-1)
-        elif (PathPlanner.is_cell_walkable(mapdata, x-1, y+1)):
-          walkable_neighbor.append(x-1, y+1)
+        possible_neighbors = []
+        walkable_neighbors = PathPlanner.neighbors_of_4(mapdata, x, y)
+
+        possible_neighbors.append((x+1, y+1))
+        possible_neighbors.append((x-1, y+1))
+        possible_neighbors.append((x+1, y-1))
+        possible_neighbors.append((x-1, y-1))
+
+        for neighbor in possible_neighbors:
+            if (PathPlanner.is_cell_walkable(mapdata, neighbor[0], neighbor[1])):
+                walkable_neighbors.append(neighbor)
         return walkable_neighbors
 
     
-    
+    # TESTED
     @staticmethod
     def request_map():
         """
@@ -219,10 +222,13 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         rospy.loginfo("Requesting the map")
-        
-        rospy.wait_for_service('static_map') # Block until service is available
-        grid = rospy.ServiceProxy('static_map', GetMap)
-        
+        try:
+            rospy.wait_for_service('static_map') # Block until service is available
+            grid = rospy.ServiceProxy('static_map', GetMap)
+        except Exception:
+            print(f"Error when requesting map\n{Exception}")
+            return None
+
         return grid().map
 
 
@@ -241,17 +247,18 @@ class PathPlanner:
         ## Go through each cell in the occupancy grid
         ## Inflate the obstacles where necessary
         # TODO
+
         ## Create a GridCells message and publish it
         # TODO
         ## Return the C-space
-        pass
+        return cspace
 
 
     
     def a_star(self, mapdata, start, goal):
         ### REQUIRED CREDIT
         rospy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
-
+        return []
 
     
     @staticmethod
@@ -263,6 +270,7 @@ class PathPlanner:
         """
         ### EXTRA CREDIT
         rospy.loginfo("Optimizing path")
+        return []
 
         
 
@@ -274,25 +282,25 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         rospy.loginfo("Returning a Path message")
-        
+
         msg = Path() # Create path msg
-        
+
         # Create msg header
-        msg.header.seq = self.seq
+        # msg.header.seq = self.seq
         msg.header.stamp = rospy.Time.now()
-        msg.header.frame_id = 'map'
-        self.seq += 1
-        
+        # msg.header.frame_id = 'map'
+        # self.seq += 1
+
         msg.poses = PathPlanner.path_to_poses(mapdata, path) # Store poses using path_to_poses()
-        
+
         return msg
 
-        
+
     def plan_path(self, msg):
         """
         Plans a path between the start and goal locations in the requested.
         Internally uses A* to plan the optimal path.
-        :param req 
+        :param req
         """
         ## Request the map
         ## In case of error, return an empty path
@@ -311,13 +319,59 @@ class PathPlanner:
         return self.path_to_message(mapdata, waypoints)
 
 
-    
+
+###################################### utils ##################################
+
+    @staticmethod
+    def print_map(mapdata):
+        width = mapdata.info.width
+        height = mapdata.info.height
+        map_array = mapdata.data
+
+        for i in range(height):
+            for j in range(width):
+                # print is up side down, need to print top to bottom
+                value = map_array[PathPlanner.grid_to_index(mapdata, j, (height-i-1))]
+                if value == 100:
+                    print("#", end=" ")
+                elif value == 0:
+                    print(" ", end=" ")
+                else:
+                    print("?", end=" ")
+            print("")
+
+
+    @staticmethod
+    def modify_map(mapdata, x, y, value):
+        map_array = list(mapdata.data)
+        map_array[PathPlanner.grid_to_index(mapdata, x, y)] = value
+
+        new_mapdata = OccupancyGrid()
+        new_mapdata.header = mapdata.header
+        new_mapdata.info = mapdata.info
+        new_mapdata.data = map_array
+        
+        return new_mapdata
+
+
+
     def run(self):
         """
         Runs the node until Ctrl-C is pressed.
         """
+        mapdata = PathPlanner.request_map()
+        print(mapdata)
+        PathPlanner.print_map(mapdata)
 
-        # PathPlanner.
+        print("\n")
+        print(PathPlanner.neighbors_of_8(mapdata, 4, 3))
+
+        new_mapdata = PathPlanner.modify_map(mapdata, 3, 4, 10)
+
+
+
+
+        PathPlanner.print_map(new_mapdata)
 
         rospy.spin()
 
