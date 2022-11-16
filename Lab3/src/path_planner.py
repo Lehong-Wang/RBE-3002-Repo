@@ -23,7 +23,7 @@ class PathPlanner:
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
         # TODO
-        plan_path = rospy.Service('plan_path', GetPlan, self.plan_path)
+        self.plan_path_service = rospy.Service('plan_path', GetPlan, self.plan_path)
         
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
@@ -39,10 +39,10 @@ class PathPlanner:
         
         ## Initialize the request counter
         # TODO
-        request = 0
+        self.request = 0
         
         # Seq counter
-        seq = 0
+        self.seq = 0
         
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
@@ -281,7 +281,7 @@ class PathPlanner:
         msg.header.seq = self.seq
         msg.header.stamp = rospy.Time.now()
         msg.header.frame_id = 'map'
-        seq += 1
+        self.seq += 1
         
         msg.poses = PathPlanner.path_to_poses(mapdata, path) # Store poses using path_to_poses()
         
