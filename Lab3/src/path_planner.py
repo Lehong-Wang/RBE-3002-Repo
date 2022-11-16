@@ -59,7 +59,7 @@ class PathPlanner:
         :return  [int] The index.
         """
         ### REQUIRED CREDIT
-        return y*mapdata.info.width + x
+        return y * mapdata.info.width + x
 
 
 
@@ -74,7 +74,7 @@ class PathPlanner:
         :return   [float]        The distance.
         """
         ### REQUIRED CREDIT
-        return math.sqrt((x1-x2)**2 + (y1-y2)**2)
+        return math.sqrt((x1-x2) ** 2 + (y1-y2) ** 2)
         
 
 
@@ -103,8 +103,8 @@ class PathPlanner:
         :return        [(int,int)]     The cell position as a tuple.
         """
         ### REQUIRED CREDIT
-        gc_x = int((wp.x-mapdata.info.origin.position.x) / mapdata.info.resolution)
-        gc_y = int((wp.y-mapdata.info.origin.position.y) / mapdata.info.resolution)
+        gc_x = int((wp.x - mapdata.info.origin.position.x) / mapdata.info.resolution)
+        gc_y = int((wp.y - mapdata.info.origin.position.y) / mapdata.info.resolution)
         return (gc_x, gc_y)
 
         
@@ -148,15 +148,21 @@ class PathPlanner:
         :return        [boolean]       True if the cell is walkable, False otherwise
         """
         ### REQUIRED CREDIT
-        walkable = False;
-        index = PathPlanner.grid_to_index(mapdata, x, y) # Converts the coordinates to indices in grid
-        if (index < mapdata.info.width and index > 0):
-          walkable = True
-        else:
-          walkable = False
-        pass
-        
-               
+        # walkable = False;
+        # index = PathPlanner.grid_to_index(mapdata, x, y) # Converts the coordinates to indices in grid
+        # if (index < mapdata.info.width and index > 0):
+        #   walkable = True
+
+        within_bound = x <= mapdata.info.width and \
+                        y <= mapdata.info.height and \
+                            min(x,y) >= 0
+
+        index = PathPlanner.grid_to_index(mapdata, x, y)
+        is_free = mapdata.data[index]
+
+        return within_bound & is_free
+
+
 
     @staticmethod
     def neighbors_of_4(mapdata, x, y):
@@ -310,6 +316,9 @@ class PathPlanner:
         """
         Runs the node until Ctrl-C is pressed.
         """
+
+        # PathPlanner.
+
         rospy.spin()
 
 
