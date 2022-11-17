@@ -19,6 +19,7 @@ class PriorityQueue:
         Puts an element in the queue.
         :param element  [any type]     The element.
         :param priority [int or float] The priority.
+        :return [bool]  if successfully put
         """
         for i in range(0, len(self.elements)):
             it = self.elements[i]
@@ -26,8 +27,10 @@ class PriorityQueue:
                 if (it[0] > priority):
                     self.elements[i] = (priority, element)
                     heapq.heapify(self.elements)
-                return
+                    return True
+                return False
         heapq.heappush(self.elements, (priority, element))
+        return True
 
     def get(self):
         """

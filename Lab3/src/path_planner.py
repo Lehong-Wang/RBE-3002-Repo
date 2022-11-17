@@ -7,6 +7,7 @@ from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
 
+import priority_queue
 
 
 class PathPlanner:
@@ -69,6 +70,19 @@ class PathPlanner:
         return index
 
 
+    @staticmethod
+    def index_to_grid(mapdata, index):
+        width = mapdata.info.width
+        height = mapdata.info.height
+        map_array = mapdata.data
+        if index >= len(map_array):
+            warn_str = f"Error: index out of grid {index}"
+            warnings.warn(warn_str)
+            return (0,0)
+
+        y = index // width
+        x = index % height
+        return (x,y)
 
     @staticmethod
     def euclidean_distance(x1, y1, x2, y2):
@@ -332,11 +346,93 @@ class PathPlanner:
 
     
     def a_star(self, mapdata, start, goal):
+        """
+        return list of tuples (x,y) as path
+        """
         ### REQUIRED CREDIT
         rospy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
-        return []
 
-    
+        width = mapdata.info.width
+        height = mapdata.info.height
+        map_array = mapdata.data
+
+        if not PathPlanner.is_cell_walkable(mapdata, start[0], start[1]):
+            warn_str = f"Error: Start grid is not walkable"
+            warnings.warn(warn_str)
+            return []
+        if not PathPlanner.is_cell_walkable(mapdata, goal[0], goal[1]):
+            warn_str = f"Error: Goal grid is not walkable"
+            warnings.warn(warn_str)
+            return []
+
+        h_list = [None] * (width * height)
+        g_list = [None] * (width * height)
+        f_list = [None] * (width * height)
+        from_list = [None] * (width * height)
+        visited_list = [None] * (width * height)
+
+        pq = priority_queue.PriorityQueue()
+
+        start_index = PathPlanner.grid_to_index(mapdata, start[0], start[1])
+        print(f"start_index: {start_index}")
+        goal_index = PathPlanner.grid_to_index(mapdata, goal[0], goal[1])
+
+        # calculate h
+        for i in range(len(map_array)):
+            x,y = PathPlanner.index_to_grid(mapdata, i)
+            h_list[i] = (PathPlanner.euclidean_distance(x, y, width-1, height-1))
+        # print(h_list)
+
+        g_list[start_index] = 0
+        f_list[start_index] = g_list[start_index] + h_list[start_index]
+        pq.put(start, f_list[start_index])
+
+        while not pq.empty():
+            current = pq.get()
+            print(f"current: {current}")
+            current_i = PathPlanner.grid_to_index(mapdata, current[0], current[1])
+
+            if current == goal:
+                print("Path Found")
+                for i in range(width*height):
+                    if i % width == 0:
+                        print("")
+                    print(from_list[i], end="\t")
+
+                print("\n",from_list)
+                path_list = []
+                path_list.insert(0,current)
+                this_from = from_list[current_i]
+                while (this_from != start or this_from is None):
+                    # print(f"this_from: {this_from}")
+                    path_list.insert(0, this_from)
+                    this_from_i = PathPlanner.grid_to_index(mapdata, this_from[0], this_from[1])
+                    this_from = from_list[this_from_i]
+
+                path_list.insert(0, this_from)
+                return path_list
+
+            neighbors = PathPlanner.neighbors_of_4(mapdata, current[0], current[1])
+
+            for neib in neighbors:
+                neib_i = PathPlanner.grid_to_index(mapdata,neib[0], neib[1])
+                if visited_list[neib_i]:
+                    continue
+                g_list[neib_i] = g_list[current_i] + 1
+                f_list[neib_i] = g_list[neib_i] + h_list[neib_i]
+                # if successfully put, return True
+                if pq.put(neib, f_list[neib_i]):
+                    from_list[neib_i] = current
+
+            visited_list[current_i] = True
+
+
+
+
+
+
+
+
     @staticmethod
     def optimize_path(path):
         """
@@ -433,13 +529,13 @@ class PathPlanner:
     @staticmethod
     def get_test_map():
         mapdata = OccupancyGrid()
-        # mapdata.info.width = 4
-        # mapdata.info.height = 4
-        # mapdata.data = (100,0,0,0, 0,0,100,0, 0,0,0,0, 0,0,100,100)
+        mapdata.info.width = 4
+        mapdata.info.height = 4
+        mapdata.data = (100,0,0,0, 0,0,100,0, 0,0,0,0, 0,0,100,100)
 
-        mapdata.info.width = 3
-        mapdata.info.height = 3
-        mapdata.data = (100,0,0, 0,0,0, 0,100,100)
+        # mapdata.info.width = 3
+        # mapdata.info.height = 3
+        # mapdata.data = (100,0,0, 0,0,0, 0,100,100)
 
         return mapdata
 
@@ -459,7 +555,7 @@ class PathPlanner:
         # new_mapdata = PathPlanner.modify_map(mapdata, 3, 4, 10)
         # PathPlanner.print_map(new_mapdata)
         
-        self.calc_cspace(mapdata, 2)
+        # self.calc_cspace(mapdata, 2)
         # print(PathPlanner.is_cell_free(mapdata, 2,2))
 
         # rospy.spin()
@@ -467,6 +563,8 @@ class PathPlanner:
         # print(PathPlanner.is_cell_walkable(mapdata,0,0))
 
 
+        # print(self.a_star(mapdata, (0,1), (2,2)))
+        print(self.a_star(mapdata, (1,1), (35,35)))
 
         
 if __name__ == '__main__':
