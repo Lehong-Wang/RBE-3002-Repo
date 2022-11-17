@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import math
+import warnings
 import rospy
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
@@ -28,7 +29,7 @@ class PathPlanner:
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
         # TODO
-        self.pub = rospy.Publisher('/path_planner/cspace', GridCells, queue_size=10)
+        self.cspace_pub = rospy.Publisher('/path_planner/cspace', GridCells, queue_size=10)
         
         ## Create publishers for A* (expanded cells, frontier, ...)
         ## Choose the topic names, the message type is GridCells
@@ -56,7 +57,16 @@ class PathPlanner:
         :return  [int] The index.
         """
         ### REQUIRED CREDIT
-        return y * mapdata.info.width + x
+        within_bound = x < mapdata.info.width and \
+                        y < mapdata.info.height and \
+                            min(x,y) >= 0      
+        if not within_bound:
+            warn_str = f"Error: grid out of bound {(x,y)}"
+            warnings.warn(warn_str)
+            return 0
+
+        index = y * mapdata.info.width + x
+        return index
 
 
 
@@ -155,13 +165,19 @@ class PathPlanner:
                             min(x,y) >= 0
 
         index = PathPlanner.grid_to_index(mapdata, x, y)
-        is_free = ~ mapdata.data[index]
+        is_free = not mapdata.data[index]
         # print(f"Walk {(x,y)}")
         # print(within_bound)
         # print(is_free)
 
         return within_bound & is_free
 
+
+    @staticmethod
+    def is_cell_free(mapdata, x, y):
+        index = PathPlanner.grid_to_index(mapdata, x, y)
+        is_free = not mapdata.data[index]
+        return is_free
 
     # TESTED
     @staticmethod
@@ -232,6 +248,7 @@ class PathPlanner:
         return grid().map
 
 
+    # TESTED
     def calc_cspace(self, mapdata, padding):
         """
         Calculates the C-Space, i.e., makes the obstacles in the map thicker.
@@ -247,9 +264,68 @@ class PathPlanner:
         ## Go through each cell in the occupancy grid
         ## Inflate the obstacles where necessary
         # TODO
+        width = mapdata.info.width
+        height = mapdata.info.height
+        map_array = mapdata.data
+        paded_cell_list = []
+        new_map_array = []
+
+        for y in range(height):
+            for x in range(width):
+                # print(f"padding {(x,y)}")
+
+                if not PathPlanner.is_cell_walkable(mapdata, x, y):
+                    new_map_array.append(mapdata.data[PathPlanner.grid_to_index(mapdata, x, y)])
+                    # print("continue")
+                    continue
+
+                pad_x_range = (x - padding, x + padding+1)
+                pad_y_range = (y - padding, y + padding+1)
+
+                neighbor_all_free = True
+                for pad_x in range(x - padding, x + padding+1):
+                    if not neighbor_all_free:
+                        break
+
+                    for pad_y in range(y - padding, y + padding+1):
+                        if not neighbor_all_free:
+                            break
+                        within_bound = pad_x < mapdata.info.width and \
+                            pad_y < mapdata.info.height and \
+                            min(pad_x,pad_y) >= 0
+
+                        if within_bound:
+                            neighbor_all_free &= PathPlanner.is_cell_free(mapdata, pad_x, pad_y)
+                            # ocupied = not PathPlanner.is_cell_free(mapdata, pad_x, pad_y)
+                            # if ocupied:
+                            #     neighbor_all_free = False
+                            #     # print(f"neighbor ocupied {(pad_x,pad_y)}")
+    
+                if neighbor_all_free:
+                    new_map_array.append(mapdata.data[PathPlanner.grid_to_index(mapdata, x, y)])
+                else:
+                    new_map_array.append(100)
+                    paded_cell_list.append((x,y))
+                    # print("append")
+                # if not neighbor_all_free:
+                #     mapdata = PathPlanner.modify_map(mapdata, x, y, 100)
+
+        cspace.header = mapdata.header
+        cspace.info = mapdata.info
+        cspace.data = new_map_array
+        PathPlanner.print_map(cspace)
 
         ## Create a GridCells message and publish it
         # TODO
+        grid_cell = GridCells()
+        point_list = []
+        for cell in paded_cell_list:
+            point_list.append(Point(cell[0], cell[1], 0))
+            mapdata = PathPlanner.modify_map(mapdata, cell[0], cell[1], 10)
+        grid_cell.cells = point_list
+        PathPlanner.print_map(mapdata)
+
+        self.cspace_pub.publish(grid_cell)
         ## Return the C-space
         return cspace
 
@@ -343,6 +419,7 @@ class PathPlanner:
 
     @staticmethod
     def modify_map(mapdata, x, y, value):
+        # print(f"@ modify_map {(x,y,value)}")
         map_array = list(mapdata.data)
         map_array[PathPlanner.grid_to_index(mapdata, x, y)] = value
 
@@ -353,27 +430,42 @@ class PathPlanner:
         
         return new_mapdata
 
+    @staticmethod
+    def get_test_map():
+        mapdata = OccupancyGrid()
+        # mapdata.info.width = 4
+        # mapdata.info.height = 4
+        # mapdata.data = (100,0,0,0, 0,0,100,0, 0,0,0,0, 0,0,100,100)
 
+        mapdata.info.width = 3
+        mapdata.info.height = 3
+        mapdata.data = (100,0,0, 0,0,0, 0,100,100)
+
+        return mapdata
 
     def run(self):
         """
         Runs the node until Ctrl-C is pressed.
         """
         mapdata = PathPlanner.request_map()
-        print(mapdata)
-        PathPlanner.print_map(mapdata)
+        # mapdata = PathPlanner.get_test_map()
 
-        print("\n")
-        print(PathPlanner.neighbors_of_8(mapdata, 4, 3))
+        # print(mapdata)
+        # PathPlanner.print_map(mapdata)
 
-        new_mapdata = PathPlanner.modify_map(mapdata, 3, 4, 10)
+        # print("\n")
+        # print(PathPlanner.neighbors_of_8(mapdata, 4, 3))
 
+        # new_mapdata = PathPlanner.modify_map(mapdata, 3, 4, 10)
+        # PathPlanner.print_map(new_mapdata)
+        
+        self.calc_cspace(mapdata, 2)
+        # print(PathPlanner.is_cell_free(mapdata, 2,2))
 
+        # rospy.spin()
 
+        # print(PathPlanner.is_cell_walkable(mapdata,0,0))
 
-        PathPlanner.print_map(new_mapdata)
-
-        rospy.spin()
 
 
         
