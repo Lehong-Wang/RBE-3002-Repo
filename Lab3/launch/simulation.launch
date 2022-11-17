@@ -8,6 +8,8 @@
 
 
   <node name="simple_map" pkg="map_server" type="map_server"  args ="$(find Lab3)/maps/simple_map.yaml"/>
+  <!-- rosrun tf static_transform_publisher 0 0 0 0 0 0 /map /odom 100 -->
+  <!-- <node name="tf" pkg="tf" type="static_transform_publisher"  args ="0 0 0 0 0 0 /odom /map 100"/> -->
   <node name="tf" pkg="tf" type="static_transform_publisher"  args ="0 0 0 0 0 0 /map /odom 100"/>
 
 

@@ -2,6 +2,7 @@
 
 import math
 import warnings
+import copy
 import rospy
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
@@ -280,6 +281,7 @@ class PathPlanner:
         # TODO
         width = mapdata.info.width
         height = mapdata.info.height
+        resolution = mapdata.info.resolution
         map_array = mapdata.data
         paded_cell_list = []
         new_map_array = []
@@ -324,7 +326,7 @@ class PathPlanner:
                 # if not neighbor_all_free:
                 #     mapdata = PathPlanner.modify_map(mapdata, x, y, 100)
 
-        cspace.header = mapdata.header
+        cspace.header.frame_id = "map"
         cspace.info = mapdata.info
         cspace.data = new_map_array
         PathPlanner.print_map(cspace)
@@ -332,11 +334,17 @@ class PathPlanner:
         ## Create a GridCells message and publish it
         # TODO
         grid_cell = GridCells()
+        grid_cell.header.frame_id = "map"
+        grid_cell.cell_width = resolution
+        grid_cell.cell_height = resolution
         point_list = []
+        terminal_plot_mapdata = copy.deepcopy(mapdata)
         for cell in paded_cell_list:
-            point_list.append(Point(cell[0], cell[1], 0))
-            mapdata = PathPlanner.modify_map(mapdata, cell[0], cell[1], 10)
+            # point_list.append(Point(cell[0], cell[1], 0))
+            point_list.append(PathPlanner.grid_to_world(mapdata, cell[0], cell[1]))
+            terminal_plot_mapdata = PathPlanner.modify_map(terminal_plot_mapdata, cell[0], cell[1], 10)
         grid_cell.cells = point_list
+        PathPlanner.print_map(terminal_plot_mapdata)
         PathPlanner.print_map(mapdata)
 
         self.cspace_pub.publish(grid_cell)
@@ -529,13 +537,19 @@ class PathPlanner:
     @staticmethod
     def get_test_map():
         mapdata = OccupancyGrid()
-        mapdata.info.width = 4
-        mapdata.info.height = 4
-        mapdata.data = (100,0,0,0, 0,0,100,0, 0,0,0,0, 0,0,100,100)
+        # mapdata.info.width = 4
+        # mapdata.info.height = 4
+        # mapdata.data = (100,0,0,0, 0,0,100,0, 0,0,0,0, 0,0,100,100)
 
         # mapdata.info.width = 3
         # mapdata.info.height = 3
         # mapdata.data = (100,0,0, 0,0,0, 0,100,100)
+
+        mapdata.info.width = 20
+        mapdata.info.height = 20
+        empty = [0]*400
+        mapdata.data = tuple(empty)
+
 
         return mapdata
 
@@ -555,7 +569,7 @@ class PathPlanner:
         # new_mapdata = PathPlanner.modify_map(mapdata, 3, 4, 10)
         # PathPlanner.print_map(new_mapdata)
         
-        # self.calc_cspace(mapdata, 2)
+        self.calc_cspace(mapdata, 2)
         # print(PathPlanner.is_cell_free(mapdata, 2,2))
 
         # rospy.spin()
@@ -564,7 +578,9 @@ class PathPlanner:
 
 
         # print(self.a_star(mapdata, (0,1), (2,2)))
-        print(self.a_star(mapdata, (1,1), (35,35)))
+        # print(self.a_star(mapdata, (1,1), (35,35)))
+
+        rospy.spin()
 
         
 if __name__ == '__main__':
