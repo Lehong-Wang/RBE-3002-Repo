@@ -2,7 +2,20 @@
   <!-- roslaunch turtlebot3_gazebo turtlebot3_empty_world.launch -->
   <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_empty_world.launch"/>
   <!-- roslaunch turtlebot3_gazebo turtlebot3_gazebo_rviz.launch -->
-  <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_gazebo_rviz.launch"/>
-  <!-- rosrun Lab2 lab2.py -->
-  <node pkg="Lab2" type="lab2.py" name="lab2_node" output="screen" />
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find Lab3)/rviz/rbe3002_lab3.rviz"/>
+  <!-- rosrun Lab3 lab3.py -->
+  <node pkg="Lab3" type="path_planner.py" name="lab3_node" output="screen" />
+
+
+  <node name="simple_map" pkg="map_server" type="map_server"  args ="$(find Lab3)/maps/simple_map.yaml"/>
+  <node name="tf" pkg="tf" type="static_transform_publisher"  args ="0 0 0 0 0 0 /map /odom 100"/>
+
+
+  <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="burger"/>
+
+  <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">
+    <arg name="model" value="$(arg model)"/>
+  </include>
+
+  
 </launch>
