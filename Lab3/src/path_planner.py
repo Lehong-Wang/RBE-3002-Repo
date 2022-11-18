@@ -131,7 +131,7 @@ class PathPlanner:
         gc_y = int((wp.y - mapdata.info.origin.position.y) / mapdata.info.resolution)
         return (gc_x, gc_y)
 
-        
+
     @staticmethod
     def path_to_poses(mapdata, path):
         """
@@ -142,23 +142,19 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         world = []
-        newPose = PoseStamped()
-        for i in range(len(path)-1):
-          # Convert path tuple to world coord (converted is a Point())
-          converted = PathPlanner.grid_to_world(mapdata, path[i][0], path[i][1])
-          newPose.pose.position.x = converted.x
-          newPose.pose.position.y = converted.y
-          
-          # Create msg header
-        #   mapdata.header.seq = self.seq
-        #   mapdata.header.stamp = rospy.Time.now()
-        #   mapdata.header.frame_id = 'map'
-        #   seq += 1
-          
-          world.append(newPose) # Append newPose to list of PoseStamped
+
+        for coord in path:
+            # Convert path tuple to world coord (converted is a Point())
+            newPose = PoseStamped()
+            converted = PathPlanner.grid_to_world(mapdata, coord[0], coord[1])
+            newPose.pose.position.x = converted.x
+            newPose.pose.position.y = converted.y
+            newPose.header.frame_id = 'map'
+
+            world.append(newPose)
         return world
 
-    
+
     # TESTED
     @staticmethod
     def is_cell_walkable(mapdata, x, y):
@@ -244,7 +240,7 @@ class PathPlanner:
                 walkable_neighbors.append(neighbor)
         return walkable_neighbors
 
-    
+
     # TESTED
     @staticmethod
     def request_map():
@@ -401,12 +397,8 @@ class PathPlanner:
 
             # retrieve final path
             if current == goal:
-                print("Path Found")
-                # for i in range(width*height):
-                #     if i % width == 0:
-                #         print("")
-                #     print(from_list[i], end="\t")
-
+                # print("Path Found")
+                rospy.loginfo("A* Path Found")
                 # print("\n",from_list)
                 path_list = []
                 path_list.insert(0,current)
@@ -420,14 +412,14 @@ class PathPlanner:
                 path_list.insert(0, this_from)
 
                 path_msg = self.path_to_message(mapdata, path_list)
-                rospy.sleep(0.5)
-
-                PathPlanner.publish_grid_cell(mapdata, self.frontier_pub, [])
-                PathPlanner.publish_grid_cell(mapdata, self.expanded_pub, [])
-                rospy.sleep(0.5)
+                # rospy.sleep(0.5)
+                # PathPlanner.publish_grid_cell(mapdata, self.frontier_pub, [])
+                # PathPlanner.publish_grid_cell(mapdata, self.expanded_pub, [])
+                # rospy.sleep(0.5)
                 self.path_pub.publish(path_msg)
                 rospy.sleep(0.5)
                 return path_list
+
 
             # get neighbors
             neighbors = PathPlanner.neighbors_of_4(mapdata, current[0], current[1])
@@ -442,14 +434,13 @@ class PathPlanner:
                 # if successfully put, return True
                 if pq.put(neib, f_list[neib_i]):
                     from_list[neib_i] = current
-                    # PathPlanner.publish_grid_cell(mapdata, self.frontier_pub, [neib])
                     frontier_plot_list.append(neib)
 
             # current add to visited
             visited_list[current_i] = True
-            # PathPlanner.publish_grid_cell(mapdata, self.expanded_pub, [current])
             visited_plot_list.append(current)
 
+            # plot process in Rviz
             PathPlanner.publish_grid_cell(mapdata, self.frontier_pub, frontier_plot_list)
             PathPlanner.publish_grid_cell(mapdata, self.expanded_pub, visited_plot_list)
 
@@ -483,12 +474,8 @@ class PathPlanner:
 
         msg = Path() # Create path msg
 
-        # Create msg header
-        # msg.header.seq = self.seq
         msg.header.stamp = rospy.Time.now()
         msg.header.frame_id = 'map'
-        # self.seq += 1
-
         msg.poses = PathPlanner.path_to_poses(mapdata, path) # Store poses using path_to_poses()
 
         return msg
@@ -581,7 +568,7 @@ class PathPlanner:
         for coord in grid_list:
             point_list.append(PathPlanner.grid_to_world(mapdata, coord[0], coord[1]))
 
-        print(f"Published Points: {point_list}")
+        # print(f"Published Points: {point_list}")
         grid_cell_msg.cells = point_list
 
         publisher.publish(grid_cell_msg)
@@ -623,7 +610,7 @@ class PathPlanner:
 
 
         # print(self.a_star(mapdata, (0,1), (2,2)))
-        print(self.a_star(mapdata, (1,1), (35,35)))
+        self.a_star(mapdata, (1,1), (35,35))
 
         rospy.spin()
 
