@@ -41,7 +41,7 @@ class PathPlanner:
         self.unexplored_pub = rospy.Publisher('/path_planner/unexplored', GridCells, queue_size=10)
 
         self.path_pub = rospy.Publisher('/path_planner/path', Path, queue_size=10)
-
+        
         ## Initialize the request counter
         # TODO
         self.request = 0
@@ -445,11 +445,6 @@ class PathPlanner:
             PathPlanner.publish_grid_cell(mapdata, self.expanded_pub, visited_plot_list)
 
 
-
-
-
-
-
     @staticmethod
     def optimize_path(path):
         """
@@ -497,7 +492,7 @@ class PathPlanner:
         ## Execute A*
         start = PathPlanner.world_to_grid(mapdata, msg.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
-        path  = self.a_star(cspacedata, start, goal)
+        path  = self.a_star(mapdata, start, goal)
         ## Optimize waypoints
         waypoints = PathPlanner.optimize_path(path)
         ## Return a Path message
@@ -578,13 +573,6 @@ class PathPlanner:
 
 
 
-
-
-
-
-
-
-
     def run(self):
         """
         Runs the node until Ctrl-C is pressed.
@@ -610,7 +598,7 @@ class PathPlanner:
 
 
         # print(self.a_star(mapdata, (0,1), (2,2)))
-        self.a_star(mapdata, (1,1), (35,35))
+        #self.a_star(mapdata, (1,1), (35,35))
 
         rospy.spin()
 
