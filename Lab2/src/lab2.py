@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import math
+from math import sin, cos
 import warnings
 import numpy as np
 
@@ -19,22 +20,25 @@ class Lab2:
         """
         ### Initialize node, name it 'lab2'
         rospy.init_node('lab2')
-        
+
         ### Tell ROS that this node publishes Twist messages on the '/cmd_vel' topic
         self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
-        
+
         ### Tell ROS that this node subscribes to Odometry messages on the '/odom' topic
         ### When a message is received, call self.update_odometry
         self.sub_odom = rospy.Subscriber('/odom', Odometry, self.update_odometry)
-        
+
         ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
         ### When a message is received, call self.go_to
-        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
+        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.pos_to_robot_frame_callback)
+        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
         # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
 
         self.msg_cmd_vel = Twist() # Make a new Twist message
-        
+
         self.rate = rospy.Rate(10) # 10hz
+        self.check_pos_rate = rospy.Rate(20)
+        self.check_pos_tolerance = 0.05
 
         # Robot pos
         self.px = 0
@@ -91,127 +95,6 @@ class Lab2:
 
 
 
-    def drive(self, distance, linear_speed):
-        """
-        Drives the robot in a straight line.
-        :param distance     [float] [m]   The distance to cover.
-        :param linear_speed [float] [m/s] The forward linear speed.
-        """
-        # Save the initial pose
-        initial_px = self.px
-        initial_py = self.py
-        
-        # Create variables
-        error = float('inf')
-        tolerance = 0.01
-
-        # If reached desired distance
-        while (error > tolerance):
-            error = distance - math.sqrt((self.px-initial_px)**2 + (self.py-initial_py)**2)
-            #print(f"Px: {self.px}, py: {self.py}, init: {(initial_px, initial_py)}")
-            #print(f"error: {error}")
-            self.send_speed(linear_speed, 0) # Send speed
-            rospy.sleep(0.05)
-        # Stop the robot
-        self.send_speed(0, 0)
-        
-
-
-
-    def rotate(self, angle, aspeed):
-        """
-        Rotates the robot around the body center by the given angle.
-        :param angle         [float] [rad]   The distance to cover.
-        :param angular_speed [float] [rad/s] The angular speed.
-        """
-        # Save the initial pose
-        initial_pth = self.pth
-        mapped_init_pth = initial_pth + math.pi
-        
-        # Process input
-        aspeed = abs(aspeed)    # speed is positive
-        angle = (angle+math.pi) % (2*math.pi) - math.pi   # make angle (-pi, pi)
-        # angle = (angle+math.pi) % (2*math.pi)   # make angle (0, 2*pi)
-        
-        # Go reverse when angle < 0
-        if angle < 0:
-            aspeed = -aspeed
-        print(f"@rotate\t Rotate {angle}")
-        
-        # Create variables
-        target_pth = (mapped_init_pth+angle) % (2*math.pi) - math.pi
-        error = float('inf')
-        tolerance = 0.05
-
-        # If reached desired distance
-        while (error > tolerance):
-            error = abs(self.pth - target_pth)
-            # print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
-
-            # print(f"pth: {self.pth}, init: {(initial_pth)}, target: {target_pth}")
-            # print(f"error: {error}")
-            self.send_speed(0, aspeed)
-            rospy.sleep(0.05)
-        # Stop the robot
-        self.send_speed(0, 0)
-
-    
-
-    def go_to(self, msg):
-        """
-        Calls rotate(), drive(), and rotate() to attain a given pose.
-        This method is a callback bound to a Subscriber.
-        :param msg [PoseStamped] The target pose.
-        """
-        # Save the initial pose
-        initial_pth = self.pth
-        initial_px = self.px
-        initial_py = self.py
-        
-        # Store the message position
-        desired_px = msg.pose.position.x
-        desired_py = msg.pose.position.y
-        quat_orig = msg.pose.orientation
-        quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
-        ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
-        desired_pth = yaw
-        print(f"PoseStamped {(round(desired_px,3), round(desired_py,3), round(desired_pth,3))}")
-        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
-        
-        # Calculate the rotation needed based on desired position
-        x_change = desired_px - initial_px
-        y_change = desired_py - initial_py
-        angle = math.atan2(y_change, x_change)
-        
-        # Call rotate()
-        print(f"Rotating {angle - self.pth}")
-        self.rotate(angle - self.pth, 0.5)
-        self.send_speed(0, 0)
-        rospy.sleep(0.5)
-        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
-        
-        # Calculate the distance needed based on desired position
-        target_distance = math.sqrt((desired_px-initial_px)**2 + (desired_py-initial_py)**2)
-        print(f'target Distnace: {target_distance}')
-        
-        # Call drive()
-        self.drive(target_distance, 0.1)
-        self.send_speed(0, 0)
-        rospy.sleep(0.5)
-        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
-        
-        # Call rotate for the rest of the rotation needed
-        print(f"Rotating {desired_pth - self.pth}")
-        self.rotate(desired_pth - self.pth, 0.5)
-        self.send_speed(0, 0)
-        rospy.sleep(0.5)
-        
-        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
-        print(f"Finished\nInitial{(initial_px, initial_py, initial_pth)}")
-        print(f"Final{(self.px, self.py, self.pth)}")
-        print(f"Goal {(desired_px, desired_py, desired_pth)}")
-
-
     def update_odometry(self, msg):
         """
         Updates the current pose of the robot.
@@ -232,44 +115,56 @@ class Lab2:
 
 
 
-    def arc_to(self, msg):
-        """
-        Drives to a given position in an arc.
-        :param msg [PoseStamped] The target pose.
-        """
-        # Store the message position
-        desired_px = msg.pose.position.x
-        desired_py = msg.pose.position.y
-        quat_orig = msg.pose.orientation
-        quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
-        ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
-        desired_pth = yaw
-
-        initial_px = self.px
-        initial_py = self.py
-        initial_pth = self.pth
-
-        self.test_arc((desired_px, desired_py), 10)
 
 
-    def test_arc(self, pose, time):
-        start_t = self.get_time()
-        self.short_arc(pose, time)
-        print(f"Start pose: {(self.px,self.py,self.pth)}")
-
-        while (self.get_time() < start_t + time):
-            # print(rospy.get_rostime().secs - self.start_timer.secs)
-            pass
-        self.send_speed(0, 0)
-        print(f"End pose: {(self.px,self.py,self.pth)}\n")
 
 
-    def short_arc(self, pose_x_y, time):
+
+
+
+
+
+
+
+    # def arc_to(self, msg):
+    #     """
+    #     Drives to a given position in an arc.
+    #     :param msg [PoseStamped] The target pose.
+    #     """
+    #     # Store the message position
+    #     desired_px = msg.pose.position.x
+    #     desired_py = msg.pose.position.y
+    #     quat_orig = msg.pose.orientation
+    #     quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
+    #     ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
+    #     desired_pth = yaw
+
+    #     initial_px = self.px
+    #     initial_py = self.py
+    #     initial_pth = self.pth
+
+    #     self.test_arc((desired_px, desired_py), 10)
+
+
+    # def test_arc(self, pose, time):
+    #     start_t = self.get_time()
+    #     self.short_arc(pose, time)
+    #     print(f"Start pose: {(self.px,self.py,self.pth)}")
+
+    #     while (self.get_time() < start_t + time):
+    #         # print(rospy.get_rostime().secs - self.start_timer.secs)
+    #         pass
+    #     self.send_speed(0, 0)
+    #     print(f"End pose: {(self.px,self.py,self.pth)}\n")
+
+
+    def short_arc(self, pose_x_y, speed):
         """
         drive to target with short arc
         a lot of aprocimation, work better for straighter path
         :param [(x,y)] The target pose.
-        :param [s] total time in second
+        :param [m/s] linear speed
+        :return [s] total expected time to complete arc
         """
         x2, y2 = pose_x_y
 
@@ -288,8 +183,8 @@ class Lab2:
         # how to add two angles properly? (-pi, pi)
         rotaional_displacement = 2 * (line_angle - theta)
         print(f"Old rot: {rotaional_displacement}")
-        rotaional_displacement = 2 * self.merge_angle("sub", line_angle, theta)
-        print(f"New rot: {rotaional_displacement}")
+        # rotaional_displacement = 2 * self.merge_angle("sub", line_angle, theta)
+        # print(f"New rot: {rotaional_displacement}")
 
         # rotaional_displacement = (rotaional_displacement + math.pi) % (2*math.pi) - math.pi
         # print(f"rotational_displacement {rotaional_displacement}")
@@ -299,10 +194,53 @@ class Lab2:
         print(f"raduis {raduis}")
         arc_length = raduis * rotaional_displacement
         print(f"arc_length {arc_length}")
-        linear_speed = arc_length / time
-        angular_speed = rotaional_displacement / time
-        print(f"speed {(linear_speed, angular_speed)}")
-        self.send_speed(linear_speed, angular_speed)
+        total_time = arc_length / speed
+        angular_speed = rotaional_displacement / total_time
+        print(f"speed {(speed, angular_speed)}")
+        self.send_speed(speed, angular_speed)
+        return total_time
+
+
+
+
+
+
+
+    def run_wave_point_list(self, wave_point_list, speed):
+        time_tolerance_factor = 1.2
+
+        for point in wave_point_list:
+            expected_time = self.short_arc(point, speed)
+            print(f"Expected time: {expected_time}")
+            start_t = self.get_time()
+
+            dist_list = []
+            dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
+            dist_list.append(dist)
+
+            while dist > self.check_pos_tolerance:
+                current_t = self.get_time()
+                elapsed_t = current_t - start_t
+                dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
+                dist_list.append(dist)
+                print(dist)
+                if elapsed_t > expected_time:
+                    rospy.loginfo(f"Wave point {point} not reached in time, recalculating route.")
+                    if dist_list[-1] > dist_list[-2] and dist_list[-2] > dist_list[-3]:
+                        break
+
+                self.check_pos_rate.sleep()
+            self.send_speed(0,0)
+            rospy.sleep(3)
+
+
+    def check_pos(self, target):
+        dist = math.sqrt((self.px-target[0])**2 + (self.py-target[1])**2)
+        print(dist)
+        return dist < self.check_pos_tolerance
+
+
+
 
 
 
@@ -375,37 +313,8 @@ class Lab2:
 
 
 
-    def smooth_drive(self, distance, linear_speed):
-        """
-        Drives the robot in a straight line by changing the actual speed smoothly.
-        :param distance     [float] [m]   The distance to cover.
-        :param linear_speed [float] [m/s] The maximum forward linear speed.
-        """
-        # acceleration distance is 0.1m or 40% of total distance
-        acc_distance = min(0.5, 0.4*distance)
 
-        initial_px = self.px
-        initial_py = self.py
-        error = float('inf')
-        tolerance = 0.01
 
-        # If reached desired distance
-        while (error > tolerance):
-            current_distance = math.sqrt((self.px-initial_px) ** 2 + (self.py-initial_py) ** 2)
-            error = distance - current_distance
-            #print(f"Px: {round(self.px,3)}, py: {round(self.py,3)}, init: {(initial_px, initial_py)}")
-            #print(f"error: {error}")
-
-            # fraction of covered distance compared to acc_distance, start and end considered
-            dist_fraction = min(current_distance, distance-current_distance)/ acc_distance
-            dist_fraction = max(dist_fraction, 0)
-            # speed during acceleration is sqrt(dis_frac) * speed + base_speed
-            # also smaller than target speed
-            acc_speed = min(math.sqrt(dist_fraction) * linear_speed + 0.05, linear_speed)
-            self.send_speed(acc_speed, 0)
-            rospy.sleep(0.1)
-        # Stop the robot
-        self.send_speed(0, 0)
 
 ################################### util #####################################
 
@@ -440,19 +349,59 @@ class Lab2:
         return time
 
 
-    def to_robot_frame_pose(self,x,y,th=None):
+    def pos_to_robot_frame_callback(self, msg):
+
+        x2 = msg.pose.position.x
+        y2 = msg.pose.position.y
+        quat_orig = msg.pose.orientation
+        quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
+        ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
+        th2 = yaw
+
+        self.pos_to_robot_frame(x2, y2, th2)
+
+    def pos_to_robot_frame(self,x,y,th=None):
+        if th is None:
+            th = 0
+
         x0 = self.px
         y0 = self.py
         th0 = self.pth
 
-        trans_mat = np.matrix([])
-        # TODO 
+        trans_mat = np.matrix([[cos(th0), -sin(th0), x0],\
+                                [sin(th0), cos(th0), y0],\
+                                [0, 0, 1]])
+
+        world_frame = np.matrix([[x], [y], [th]])
+        robot_frame = np.matmul(trans_mat, world_frame)
+
+        xr = robot_frame[0,0]
+        yr = robot_frame[1,0]
+        thr = robot_frame[2,0]
+
+        print(f"World Frame: {(x,y,th)}")
+        print(f"Robot: {(x0,y0,th0)}")
+        print(trans_mat, robot_frame)
+        print(f"Robot Frame: {(xr,yr,thr)}")
+        return (xr, yr, thr)
+        # TODO
+
+
+
+
+
+
 
 
     def run(self):
         print("Sleep")
         rospy.sleep(1)
         print("Wake up")
+
+        wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1), (1.2, 1.2), (1.5, 1.5), (2,2)]
+        self.run_wave_point_list(wave_points, 0.2)
+
+
         # new_timer = rospy.Time.from_sec(0)
 
         # self.test_arc((-1,1),10)
@@ -482,7 +431,7 @@ class Lab2:
         # while not rospy.is_shutdown():
         # # self.send_speed(0.5, 1)
         #     self.drive(1, 1)
-        rospy.spin()
+        # rospy.spin()
 
 if __name__ == '__main__':
     Lab2().run()
