@@ -36,7 +36,7 @@ class Lab2:
 
         self.msg_cmd_vel = Twist() # Make a new Twist message
 
-        self.rate = rospy.Rate(10) # 10hz
+        self.rate = rospy.Rate(50) # 10hz
         self.check_pos_rate = rospy.Rate(20)
         self.check_pos_tolerance = 0.05
 
@@ -203,14 +203,7 @@ class Lab2:
 
 
 
-    def pid_control(self, pose_x_y, speed):
-        
-        pass
-
-
-
-
-    def run_wave_point_list(self, wave_point_list, speed):
+    def run_wave_point_list_arc(self, wave_point_list, speed):
         time_tolerance_factor = 1.2
 
         for point in wave_point_list:
@@ -228,7 +221,7 @@ class Lab2:
                 dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
                 dist_list.append(dist)
                 print(dist)
-                if elapsed_t > expected_time:
+                if elapsed_t > time_tolerance_factor * expected_time:
                     rospy.loginfo(f"Wave point {point} not reached in time, recalculating route.")
                     if dist_list[-1] > dist_list[-2] and dist_list[-2] > dist_list[-3]:
                         break
@@ -242,6 +235,70 @@ class Lab2:
         dist = math.sqrt((self.px-target[0])**2 + (self.py-target[1])**2)
         print(dist)
         return dist < self.check_pos_tolerance
+
+
+
+
+
+    def pid_control(self, pose_x_y, speed, d_angle):
+        x2, y2 = pose_x_y
+
+        x1 = self.px
+        y1 = self.py
+        theta = self.pth
+
+        kp_angle = 6
+        kd_angle = 1
+
+        target_angle = math.atan2(y2-y1, x2-x1)
+        p_angle = target_angle - theta
+
+        v_angle = kp_angle * p_angle - kd_angle * d_angle
+
+        self.send_speed(speed, v_angle)
+        return (speed, v_angle)
+
+
+
+
+    def run_wave_point_list_pid(self, wave_point_list, speed):
+        time_tolerance_factor = 1.2
+
+        for point in wave_point_list:
+            total_dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
+            expected_time = total_dist / speed
+            print(f"Expected time: {expected_time}")
+            start_t = self.get_time()
+
+            dist_list = []
+            dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
+            dist_list.append(dist)
+
+            angular_speed_list = [0.0, 0.0, 0.0]
+            # angular speed for d controller
+            d_angle = 0
+            virtrual_goal = (point[0] + 0.5*(point[0]-self.px), point[1] + 0.5*(point[1]-self.py))
+
+            while dist > self.check_pos_tolerance:
+                current_t = self.get_time()
+                elapsed_t = current_t - start_t
+                dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
+                dist_list.append(dist)
+                print(dist)
+                if elapsed_t > time_tolerance_factor * expected_time:
+                    rospy.loginfo(f"Wave point {point} not reached in time, recalculating route.")
+                    if dist_list[-1] > dist_list[-2] and dist_list[-2] > dist_list[-3]:
+                        break
+
+
+                linear_speed, angular_speed = self.pid_control(virtrual_goal, speed, d_angle)
+                angular_speed_list.append(angular_speed)
+                d_angle = 1/2 * (angular_speed_list[-1] + angular_speed_list[-2])
+
+                # self.check_pos_rate.sleep()
+
+            self.send_speed(0,0)
+            rospy.sleep(3)
 
 
 
@@ -385,7 +442,8 @@ class Lab2:
 
         print(f"World Frame: {(x,y,th)}")
         print(f"Robot: {(x0,y0,th0)}")
-        print(trans_mat, robot_frame)
+        print(trans_mat)
+        print(robot_frame)
         print(f"Robot Frame: {(xr,yr,thr)}")
         return (xr, yr, thr)
         # TODO
@@ -402,8 +460,8 @@ class Lab2:
         rospy.sleep(1)
         print("Wake up")
 
-        # wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1), (1.2, 1.2), (1.5, 1.5), (2,2)]
-        # self.run_wave_point_list(wave_points, 0.2)
+        wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1), (1.2, 1.2), (1.5, 1.5), (2,2), (1,1)]
+        self.run_wave_point_list_pid(wave_points, 0.2)
 
 
         # new_timer = rospy.Time.from_sec(0)
