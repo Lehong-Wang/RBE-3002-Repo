@@ -429,24 +429,19 @@ class Lab2:
         y0 = self.py
         th0 = self.pth
 
-        trans_mat = np.matrix([[cos(th0), -sin(th0), cos(th0)*x0-sin(th0)*y0],\
-                                [sin(th0), cos(th0), sin(th0)*x0+cos(th0)*y0],\
-                                [0, 0, 1]])
-
-        world_frame = np.matrix([[x], [y], [th]])
-        robot_frame = np.matmul(trans_mat, world_frame)
-
+        trans_mat = np.matrix([[x-x0], [y-y0]])
+        rot_mat = np.matrix([[cos(-th0), -sin(-th0)],\
+                            [sin(-th0), cos(-th0)]])
+        robot_frame = np.matmul(rot_mat, trans_mat)
         xr = robot_frame[0,0]
         yr = robot_frame[1,0]
-        thr = robot_frame[2,0]
 
-        print(f"World Frame: {(x,y,th)}")
+        print(f"\nWorld Frame: {(x,y,th)}")
         print(f"Robot: {(x0,y0,th0)}")
         print(trans_mat)
         print(robot_frame)
-        print(f"Robot Frame: {(xr,yr,thr)}")
-        return (xr, yr, thr)
-        # TODO
+        print(f"Robot Frame: {(xr,yr)}")
+        return (xr, yr)
 
 
 
@@ -460,8 +455,8 @@ class Lab2:
         rospy.sleep(1)
         print("Wake up")
 
-        wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1), (1.2, 1.2), (1.5, 1.5), (2,2), (1,1)]
-        self.run_wave_point_list_pid(wave_points, 0.2)
+        # wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1), (1.2, 1.2), (1.5, 1.5), (2,2), (1,1)]
+        # self.run_wave_point_list_pid(wave_points, 0.2)
 
 
         # new_timer = rospy.Time.from_sec(0)
