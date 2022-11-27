@@ -34,8 +34,17 @@ class BezierCurve():
         t = time / self.total_time
         x = ((1 - t) ** 3) * self.p0x + 3 * ((1 - t) ** 2) * t * self.p1x + 3 * (1 - t) * (t ** 2) * self.p2x + (t ** 3) * self.p3x
         y = ((1 - t) ** 3) * self.p0y + 3 * ((1 - t) ** 2) * t * self.p1y + 3 * (1 - t) * (t ** 2) * self.p2y + (t ** 3) * self.p3y
-        
+
         return (x,y)
+
+
+    def get_wave_points(self, num):
+        point_list = []
+        for i in range(num):
+            wave_point = self.calc_curve(i / (num-1) * self.total_time)
+            point_list.append(wave_point)
+        point_list.pop(0)
+        return point_list
 
 
     def plot(self):

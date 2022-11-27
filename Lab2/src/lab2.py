@@ -30,15 +30,15 @@ class Lab2:
 
         ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
         ### When a message is received, call self.go_to
-        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.pos_to_robot_frame_callback)
-        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
+        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.pos_to_robot_frame_callback)
+        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
         # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
 
         self.msg_cmd_vel = Twist() # Make a new Twist message
 
         self.rate = rospy.Rate(50) # 10hz
         self.check_pos_rate = rospy.Rate(20)
-        self.check_pos_tolerance = 0.05
+        self.check_pos_tolerance = 0.03
 
         # Robot pos
         self.px = 0
@@ -255,16 +255,20 @@ class Lab2:
 
         v_angle = kp_angle * p_angle - kd_angle * d_angle
 
-        self.send_speed(speed, v_angle)
+        v_angle = min(v_angle, 10)
+
+        # self.send_speed(speed, v_angle)
         return (speed, v_angle)
 
 
 
 
     def run_wave_point_list_pid(self, wave_point_list, speed):
+
+        rospy.loginfo(f"Wave Points: {wave_point_list}\nSpeed: {speed}")
         time_tolerance_factor = 1.2
 
-        for point in wave_point_list:
+        for i,point in enumerate(wave_point_list):
             total_dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
             expected_time = total_dist / speed
             print(f"Expected time: {expected_time}")
@@ -277,6 +281,7 @@ class Lab2:
             angular_speed_list = [0.0, 0.0, 0.0]
             # angular speed for d controller
             d_angle = 0
+            # set a virtrual goal behind actrual goal to pervent angle fluctruation near goal
             virtrual_goal = (point[0] + 0.5*(point[0]-self.px), point[1] + 0.5*(point[1]-self.py))
 
             while dist > self.check_pos_tolerance:
@@ -292,17 +297,41 @@ class Lab2:
 
 
                 linear_speed, angular_speed = self.pid_control(virtrual_goal, speed, d_angle)
+                if i == 0:
+                    linear_speed, angular_speed = self.smooth_start(linear_speed, angular_speed, dist_list)
+                if i == len(wave_point_list) - 1:
+                    linear_speed, angular_speed = self.smooth_stop(linear_speed, angular_speed, dist_list)
+                self.send_speed(linear_speed, angular_speed)
                 angular_speed_list.append(angular_speed)
                 d_angle = 1/2 * (angular_speed_list[-1] + angular_speed_list[-2])
 
                 # self.check_pos_rate.sleep()
 
             self.send_speed(0,0)
-            rospy.sleep(3)
+            print(f"Reached {point}")
+            # rospy.sleep(1)
+
+        rospy.loginfo(f"Goal {wave_point_list[-1]} Reached !")
 
 
 
+    def smooth_start(self, linear_speed, angular_speed, dist_list):
+        full_start_length = 10
+        current_length = len(dist_list)
+        if current_length < full_start_length:
+            linear_speed = linear_speed * current_length / full_start_length
+            print(f"Speed: {linear_speed}")
 
+        return linear_speed, angular_speed
+
+
+    def smooth_stop(self, linear_speed, angular_speed, dist_list):
+        start_break_dist = 0.1
+        current_dist = dist_list[-1]
+        if current_dist < start_break_dist:
+            linear_speed = linear_speed * current_dist*10
+            print(f"Speed: {linear_speed}")
+        return linear_speed, angular_speed
 
 
 
@@ -323,18 +352,22 @@ class Lab2:
 
         bezier_traj, total_time = self.bezier_traj(x1,y1,th1, x2,y2,th2, linear_speed)
 
-        # time here is rounded to 3 digits
-        t0 = self.get_time()
-        t = t0
+        wave_points = bezier_traj.get_wave_points(10)
 
-        # TODO changed time
-        while (t < t0 + total_time*1.2):
-            x_t, y_t = bezier_traj.calc_curve(t-t0)
-            self.short_arc((x_t, y_t), 0.5)
-            rospy.sleep(0.4)
-            t = self.get_time()
+        self.run_wave_point_list_pid(wave_points, 0.1)
 
-        self.send_speed(0,0)
+        # # time here is rounded to 3 digits
+        # t0 = self.get_time()
+        # t = t0
+
+        # # TODO changed time
+        # while (t < t0 + total_time*1.2):
+        #     x_t, y_t = bezier_traj.calc_curve(t-t0)
+        #     self.short_arc((x_t, y_t), 0.5)
+        #     rospy.sleep(0.4)
+        #     t = self.get_time()
+
+        # self.send_speed(0,0)
 
 
 
@@ -421,6 +454,7 @@ class Lab2:
 
         self.pos_to_robot_frame(x2, y2, th2)
 
+
     def pos_to_robot_frame(self,x,y,th=None):
         if th is None:
             th = 0
@@ -455,8 +489,10 @@ class Lab2:
         rospy.sleep(1)
         print("Wake up")
 
-        # wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1), (1.2, 1.2), (1.5, 1.5), (2,2), (1,1)]
-        # self.run_wave_point_list_pid(wave_points, 0.2)
+        wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1), (1.2, 1.2), (1.5, 1.5), (2,2), (1,1)]
+        # wave_points = [(0,0), (0.2,0.1),(0.22,0.12),(0.24,0.14),(0.26,0.16),(0.28,0.18),(0.30,0.20),(0.5, 0), (0.5,0.5), (1,1)]
+        wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1)]
+        self.run_wave_point_list_pid(wave_points, 0.2)
 
 
         # new_timer = rospy.Time.from_sec(0)
