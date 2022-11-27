@@ -31,8 +31,8 @@ class Lab2:
         ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
         ### When a message is received, call self.go_to
         # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.pos_to_robot_frame_callback)
-        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
-        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
+        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
+        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
 
         self.msg_cmd_vel = Twist() # Make a new Twist message
 
@@ -117,6 +117,137 @@ class Lab2:
 
 
 
+    ################################# Original ###############################
+
+
+        
+    def drive(self, distance, linear_speed):
+        """
+        Drives the robot in a straight line.
+        :param distance     [float] [m]   The distance to cover.
+        :param linear_speed [float] [m/s] The forward linear speed.
+        """
+        # Save the initial pose
+        initial_px = self.px
+        initial_py = self.py
+        
+        # Create variables
+        error = float('inf')
+        tolerance = 0.01
+
+        # If reached desired distance
+        while (error > tolerance):
+            error = distance - math.sqrt((self.px-initial_px)**2 + (self.py-initial_py)**2)
+            #print(f"Px: {self.px}, py: {self.py}, init: {(initial_px, initial_py)}")
+            #print(f"error: {error}")
+            self.send_speed(linear_speed, 0) # Send speed
+            rospy.sleep(0.05)
+        # Stop the robot
+        self.send_speed(0, 0)
+        print(f"Finished Drive {distance}")
+        print(f"From: {(initial_px, initial_py)}\tTo: {(self.px, self.py)}")
+
+
+    def drive_with_correction(self, dest, linear_speed):
+        self.run_wave_point_list_pid([dest], linear_speed)
+
+
+    def rotate(self, angle, aspeed):
+        """
+        Rotates the robot around the body center by the given angle.
+        :param angle         [float] [rad]   The distance to cover.
+        :param angular_speed [float] [rad/s] The angular speed.
+        """
+        # Save the initial pose
+        initial_pth = self.pth
+        mapped_init_pth = initial_pth + math.pi
+        
+        # Process input
+        aspeed = abs(aspeed)    # speed is positive
+        angle = (angle+math.pi) % (2*math.pi) - math.pi   # make angle (-pi, pi)
+        # angle = (angle+math.pi) % (2*math.pi)   # make angle (0, 2*pi)
+        
+        # Go reverse when angle < 0
+        if angle < 0:
+            aspeed = -aspeed
+        # print(f"@rotate\t Rotate {angle}")
+        
+        # Create variables
+        target_pth = (mapped_init_pth+angle) % (2*math.pi) - math.pi
+        error = float('inf')
+        tolerance = 0.05
+
+        # If reached desired distance
+        while (error > tolerance):
+            error = abs(self.pth - target_pth)
+            # print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+
+            # print(f"pth: {self.pth}, init: {(initial_pth)}, target: {target_pth}")
+            # print(f"error: {error}")
+            self.send_speed(0, aspeed)
+            rospy.sleep(0.05)
+        # Stop the robot
+        self.send_speed(0, 0)
+        print(f"Finished Rotate {angle}")
+        print(f"From: {initial_pth}\tTo: {self.pth}")
+        
+
+
+    def go_to(self, msg):
+        """
+        Calls rotate(), drive(), and rotate() to attain a given pose.
+        This method is a callback bound to a Subscriber.
+        :param msg [PoseStamped] The target pose.
+        """
+        # Save the initial pose
+        initial_pth = self.pth
+        initial_px = self.px
+        initial_py = self.py
+        
+        # Store the message position
+        desired_px = msg.pose.position.x
+        desired_py = msg.pose.position.y
+        quat_orig = msg.pose.orientation
+        quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
+        ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
+        desired_pth = yaw
+        print(f"PoseStamped {(round(desired_px,3), round(desired_py,3), round(desired_pth,3))}")
+        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+        
+        # Calculate the rotation needed based on desired position
+        x_change = desired_px - initial_px
+        y_change = desired_py - initial_py
+        angle = math.atan2(y_change, x_change)
+        
+        # Call rotate()
+        print(f"Rotating {angle - self.pth}")
+        self.rotate(angle - self.pth, 0.5)
+        self.send_speed(0, 0)
+        rospy.sleep(0.5)
+        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+        
+        # # Calculate the distance needed based on desired position
+        # target_distance = math.sqrt((desired_px-initial_px)**2 + (desired_py-initial_py)**2)
+        # print(f'target Distnace: {target_distance}')
+        
+        # # Call drive()
+        # self.drive(target_distance, 0.1)
+        # self.send_speed(0, 0)
+        # rospy.sleep(0.5)
+        # print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+        
+        self.drive_with_correction((desired_px, desired_py), 0.1)
+
+        # Call rotate for the rest of the rotation needed
+        print(f"Rotating {desired_pth - self.pth}")
+        self.rotate(desired_pth - self.pth, 0.5)
+        self.send_speed(0, 0)
+        rospy.sleep(0.5)
+        
+        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+        print(f"Finished\nInitial{(initial_px, initial_py, initial_pth)}")
+        print(f"Final{(self.px, self.py, self.pth)}")
+        print(f"Goal {(desired_px, desired_py, desired_pth)}")
 
 
 
@@ -126,36 +257,9 @@ class Lab2:
 
 
 
-    # def arc_to(self, msg):
-    #     """
-    #     Drives to a given position in an arc.
-    #     :param msg [PoseStamped] The target pose.
-    #     """
-    #     # Store the message position
-    #     desired_px = msg.pose.position.x
-    #     desired_py = msg.pose.position.y
-    #     quat_orig = msg.pose.orientation
-    #     quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
-    #     ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
-    #     desired_pth = yaw
 
-    #     initial_px = self.px
-    #     initial_py = self.py
-    #     initial_pth = self.pth
+    ################################# Arc ###############################
 
-    #     self.test_arc((desired_px, desired_py), 10)
-
-
-    # def test_arc(self, pose, time):
-    #     start_t = self.get_time()
-    #     self.short_arc(pose, time)
-    #     print(f"Start pose: {(self.px,self.py,self.pth)}")
-
-    #     while (self.get_time() < start_t + time):
-    #         # print(rospy.get_rostime().secs - self.start_timer.secs)
-    #         pass
-    #     self.send_speed(0, 0)
-    #     print(f"End pose: {(self.px,self.py,self.pth)}\n")
 
 
     def short_arc(self, pose_x_y, speed):
@@ -238,6 +342,7 @@ class Lab2:
 
 
 
+    ################################# PID ###############################
 
 
     def pid_control(self, pose_x_y, speed, d_angle):
@@ -334,6 +439,8 @@ class Lab2:
         return linear_speed, angular_speed
 
 
+    ################################# Bezier ###############################
+
 
     def run_bezier_traj(self, msg):
         # TODO linear speed maye changable? maybe not
@@ -342,7 +449,7 @@ class Lab2:
         x1 = self.px
         y1 = self.py
         th1 = self.pth
-        
+
         x2 = msg.pose.position.x
         y2 = msg.pose.position.y
         quat_orig = msg.pose.orientation
@@ -355,20 +462,6 @@ class Lab2:
         wave_points = bezier_traj.get_wave_points(10)
 
         self.run_wave_point_list_pid(wave_points, 0.1)
-
-        # # time here is rounded to 3 digits
-        # t0 = self.get_time()
-        # t = t0
-
-        # # TODO changed time
-        # while (t < t0 + total_time*1.2):
-        #     x_t, y_t = bezier_traj.calc_curve(t-t0)
-        #     self.short_arc((x_t, y_t), 0.5)
-        #     rospy.sleep(0.4)
-        #     t = self.get_time()
-
-        # self.send_speed(0,0)
-
 
 
 
@@ -395,8 +488,6 @@ class Lab2:
 
         bezier_curve = BezierCurve(x1,y1, p1x,p1y, p2x,p2y, x2,y2, total_time)
 
-        # print(bezier_curve.p0x)
-        # print(bezier_curve)
         bezier_curve.plot()
 
         return (bezier_curve, total_time)
@@ -489,10 +580,10 @@ class Lab2:
         rospy.sleep(1)
         print("Wake up")
 
-        wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1), (1.2, 1.2), (1.5, 1.5), (2,2), (1,1)]
-        # wave_points = [(0,0), (0.2,0.1),(0.22,0.12),(0.24,0.14),(0.26,0.16),(0.28,0.18),(0.30,0.20),(0.5, 0), (0.5,0.5), (1,1)]
-        wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1)]
-        self.run_wave_point_list_pid(wave_points, 0.2)
+        # wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1), (1.2, 1.2), (1.5, 1.5), (2,2), (1,1)]
+        # # wave_points = [(0,0), (0.2,0.1),(0.22,0.12),(0.24,0.14),(0.26,0.16),(0.28,0.18),(0.30,0.20),(0.5, 0), (0.5,0.5), (1,1)]
+        # wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1)]
+        # self.run_wave_point_list_pid(wave_points, 0.2)
 
 
         # new_timer = rospy.Time.from_sec(0)
