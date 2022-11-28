@@ -31,8 +31,8 @@ class Lab2:
         ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
         ### When a message is received, call self.go_to
         # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.pos_to_robot_frame_callback)
-        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
-        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
+        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
+        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
 
         self.msg_cmd_vel = Twist() # Make a new Twist message
 

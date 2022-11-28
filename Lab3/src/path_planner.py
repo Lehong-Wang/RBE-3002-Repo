@@ -273,7 +273,7 @@ class PathPlanner:
         ### REQUIRED CREDIT
         rospy.loginfo("Calculating C-Space")
         cspace = OccupancyGrid()
-        
+
         ## Go through each cell in the occupancy grid
         ## Inflate the obstacles where necessary
         # TODO
@@ -336,7 +336,7 @@ class PathPlanner:
             point_list.append(PathPlanner.grid_to_world(mapdata, cell[0], cell[1]))
             terminal_plot_mapdata = PathPlanner.modify_map(terminal_plot_mapdata, cell[0], cell[1], 10)
         grid_cell.cells = point_list
-        PathPlanner.print_map(terminal_plot_mapdata)
+        # PathPlanner.print_map(terminal_plot_mapdata)
         # PathPlanner.print_map(mapdata)
 
         self.cspace_pub.publish(grid_cell)
@@ -370,6 +370,7 @@ class PathPlanner:
         f_list = [None] * (width * height)
         from_list = [None] * (width * height)
         visited_list = [None] * (width * height)
+        all_path_list = [None] * (width * height)
 
         pq = priority_queue.PriorityQueue()
 
@@ -380,11 +381,12 @@ class PathPlanner:
         # calculate h
         for i in range(len(map_array)):
             x,y = PathPlanner.index_to_grid(mapdata, i)
-            h_list[i] = (PathPlanner.euclidean_distance(x, y, width-1, height-1))
+            h_list[i] = (PathPlanner.euclidean_distance(x, y, goal[0], goal[1]))
         # print(h_list)
 
         g_list[start_index] = 0
         f_list[start_index] = g_list[start_index] + h_list[start_index]
+        all_path_list[start_index] = [start]
         pq.put(start, f_list[start_index])
 
         frontier_plot_list = []
@@ -397,19 +399,20 @@ class PathPlanner:
 
             # retrieve final path
             if current == goal:
-                # print("Path Found")
                 rospy.loginfo("A* Path Found")
-                # print("\n",from_list)
-                path_list = []
-                path_list.insert(0,current)
-                this_from = from_list[current_i]
-                while (this_from != start or this_from is None):
-                    # print(f"this_from: {this_from}")
-                    path_list.insert(0, this_from)
-                    this_from_i = PathPlanner.grid_to_index(mapdata, this_from[0], this_from[1])
-                    this_from = from_list[this_from_i]
+                # # print("\n",from_list)
+                # path_list = []
+                # path_list.insert(0,current)
+                # this_from = from_list[current_i]
+                # while (this_from != start or this_from is None):
+                #     # print(f"this_from: {this_from}")
+                #     path_list.insert(0, this_from)
+                #     this_from_i = PathPlanner.grid_to_index(mapdata, this_from[0], this_from[1])
+                #     this_from = from_list[this_from_i]
 
-                path_list.insert(0, this_from)
+                # path_list.insert(0, this_from)
+                path_list = all_path_list[current_i]
+                print(f"Path: {path_list}")
 
                 path_msg = self.path_to_message(mapdata, path_list)
                 # rospy.sleep(0.5)
@@ -417,23 +420,39 @@ class PathPlanner:
                 # PathPlanner.publish_grid_cell(mapdata, self.expanded_pub, [])
                 # rospy.sleep(0.5)
                 self.path_pub.publish(path_msg)
+                # PathPlanner.print_num_value(mapdata, g_list)
                 rospy.sleep(0.5)
                 return path_list
 
 
             # get neighbors
-            neighbors = PathPlanner.neighbors_of_4(mapdata, current[0], current[1])
+            # neighbors = PathPlanner.neighbors_of_4(mapdata, current[0], current[1])
+            neighbors = PathPlanner.neighbors_of_8(mapdata, current[0], current[1])
 
             # process neighbors
             for neib in neighbors:
                 neib_i = PathPlanner.grid_to_index(mapdata,neib[0], neib[1])
                 if visited_list[neib_i]:
                     continue
-                g_list[neib_i] = g_list[current_i] + 1
-                f_list[neib_i] = g_list[neib_i] + h_list[neib_i]
+
+                neighbor_path = copy.copy(all_path_list[current_i])
+                neighbor_path.append(neib)
+                # all_path_list[neib_i] = neighbor_path
+                # # g_list[neib_i] = g_list[current_i] + 1
+                # g_list[neib_i] = PathPlanner.calc_g_value(neighbor_path)
+                # f_list[neib_i] = g_list[neib_i] + h_list[neib_i]
+
+                path_value = neighbor_path
+                # g_list[neib_i] = g_list[current_i] + 1
+                g_value = PathPlanner.calc_g_value(neighbor_path)
+                f_value = g_value + h_list[neib_i]
+
                 # if successfully put, return True
-                if pq.put(neib, f_list[neib_i]):
+                if pq.put(neib, f_value):
                     from_list[neib_i] = current
+                    g_list[neib_i] = g_value
+                    f_list[neib_i] = f_value
+                    all_path_list[neib_i] = path_value
                     frontier_plot_list.append(neib)
 
             # current add to visited
@@ -443,6 +462,36 @@ class PathPlanner:
             # plot process in Rviz
             PathPlanner.publish_grid_cell(mapdata, self.frontier_pub, frontier_plot_list)
             PathPlanner.publish_grid_cell(mapdata, self.expanded_pub, visited_plot_list)
+            # print(all_path_list)
+            # print("\n\n")
+            # rospy.sleep(1)
+
+
+    @staticmethod
+    def calc_g_value(from_path):
+        turn_weight = 0.1
+        walk_distance = 0
+        turn_count = 0
+        for i in range(1,len(from_path)):
+            last = from_path[i-1]
+            this = from_path[i]
+            # calculate distance walked
+            this_dist = math.sqrt((this[0]-last[0])**2 + (this[1]-last[1])**2)
+            walk_distance += this_dist
+
+            if i == len(from_path)-1:
+                continue
+            # calculate turns
+            next = from_path[i+1]
+            if not (this[0]-last[0] == next[0]-this[0] and \
+                this[1]-last[1] == next[1]-this[1]):
+                turn_count += 1
+
+        g_value = walk_distance + turn_weight * turn_count
+        return g_value
+
+
+
 
 
     @staticmethod
@@ -454,7 +503,25 @@ class PathPlanner:
         """
         ### EXTRA CREDIT
         rospy.loginfo("Optimizing path")
-        return []
+
+        new_path = []
+        new_path.append(path[0])
+        for i in range(1,len(path)-1):
+            last = path[i-1]
+            this = path[i]
+            next = path[i+1]
+            dx1 = this[0]-last[0]
+            dy1 = this[1]-last[1]
+            dx2 = next[0]-this[0]
+            dy2 = next[1]-this[1]
+
+            # there is a turn
+            if dx1 - dx2 != dy1 - dy2:
+                new_path.append(this)
+
+        new_path.append(path[-1])
+        print(new_path)
+        return new_path
 
 
 
@@ -492,7 +559,7 @@ class PathPlanner:
         ## Execute A*
         start = PathPlanner.world_to_grid(mapdata, msg.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
-        path  = self.a_star(mapdata, start, goal)
+        path  = self.a_star(cspacedata, start, goal)
         ## Optimize waypoints
         waypoints = PathPlanner.optimize_path(path)
         ## Return a Path message
@@ -520,7 +587,31 @@ class PathPlanner:
                     print("?", end=" ")
             print("")
 
+    @staticmethod
+    def print_num_value(mapdata, value_list):
+        width = mapdata.info.width
+        height = mapdata.info.height
 
+        for i in range(height):
+            for j in range(width):
+                # print is up side down, need to print top to bottom
+                value = value_list[PathPlanner.grid_to_index(mapdata, j, (height-i-1))]
+                if value is None:
+                    print("-", end="\t")
+                # elif value == 0:
+                #     print("0.0", end="\t")
+                else:
+                    print(round(value,1), end="\t")
+                # if value == 100:
+                #     print("#", end=" ")
+                # elif value == 0:
+                #     print(" ", end=" ")
+                # else:
+                #     print("?", end=" ")
+            print("\n", end="")
+
+
+    
     @staticmethod
     def modify_map(mapdata, x, y, value):
         # print(f"@ modify_map {(x,y,value)}")

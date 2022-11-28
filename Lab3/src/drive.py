@@ -4,9 +4,8 @@ import math
 
 import rospy
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Twist
 from tf.transformations import euler_from_quaternion
-from geometry_msgs.msg import Point, Pose, PoseStamped, PoseWithCovarianceStamped
+from geometry_msgs.msg import Twist, Point, Pose, PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 
@@ -244,8 +243,27 @@ class Drive:
         
         send = path_plan(initial_pose, msg, tolerance)
         rospy.loginfo("sent path from rviz")
-            
-      
+
+        print(send)
+        self.drive_along_path(send)   
+    
+
+    def drive_along_path(self, msg):
+        """
+        given a nav_msgs/Path message
+        extract wave points
+        walk along wave points
+        """
+        wave_point_list = []
+        pose_msg_list = msg.plan.poses
+        for pose_msg in pose_msg_list:
+            x = pose_msg.pose.position.x
+            y = pose_msg.pose.position.y
+            wave_point_list.append((x,y))
+
+        print(f"Wave Points: {wave_point_list}")
+
+
 
     def run(self):
         print("Sleep")
