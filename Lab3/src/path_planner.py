@@ -21,7 +21,7 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         ## Initialize the node and call it "path_planner"
-        rospy.init_node("path_planner")
+        rospy.init_node("lab3_path_node")
         
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
@@ -382,8 +382,8 @@ class PathPlanner:
         for i in range(len(map_array)):
             x,y = PathPlanner.index_to_grid(mapdata, i)
             h_list[i] = (PathPlanner.euclidean_distance(x, y, goal[0], goal[1]))
-        # print(h_list)
 
+        # fill in start node
         g_list[start_index] = 0
         f_list[start_index] = g_list[start_index] + h_list[start_index]
         all_path_list[start_index] = [start]
@@ -400,25 +400,12 @@ class PathPlanner:
             # retrieve final path
             if current == goal:
                 rospy.loginfo("A* Path Found")
-                # # print("\n",from_list)
-                # path_list = []
-                # path_list.insert(0,current)
-                # this_from = from_list[current_i]
-                # while (this_from != start or this_from is None):
-                #     # print(f"this_from: {this_from}")
-                #     path_list.insert(0, this_from)
-                #     this_from_i = PathPlanner.grid_to_index(mapdata, this_from[0], this_from[1])
-                #     this_from = from_list[this_from_i]
 
-                # path_list.insert(0, this_from)
                 path_list = all_path_list[current_i]
                 print(f"Path: {path_list}")
 
                 path_msg = self.path_to_message(mapdata, path_list)
-                # rospy.sleep(0.5)
-                # PathPlanner.publish_grid_cell(mapdata, self.frontier_pub, [])
-                # PathPlanner.publish_grid_cell(mapdata, self.expanded_pub, [])
-                # rospy.sleep(0.5)
+
                 self.path_pub.publish(path_msg)
                 # PathPlanner.print_num_value(mapdata, g_list)
                 rospy.sleep(0.5)
@@ -435,15 +422,11 @@ class PathPlanner:
                 if visited_list[neib_i]:
                     continue
 
-                neighbor_path = copy.copy(all_path_list[current_i])
+                # construct path from start to neib
+                neighbor_path = copy.deepcopy(all_path_list[current_i])
                 neighbor_path.append(neib)
-                # all_path_list[neib_i] = neighbor_path
-                # # g_list[neib_i] = g_list[current_i] + 1
-                # g_list[neib_i] = PathPlanner.calc_g_value(neighbor_path)
-                # f_list[neib_i] = g_list[neib_i] + h_list[neib_i]
 
                 path_value = neighbor_path
-                # g_list[neib_i] = g_list[current_i] + 1
                 g_value = PathPlanner.calc_g_value(neighbor_path)
                 f_value = g_value + h_list[neib_i]
 
@@ -462,14 +445,14 @@ class PathPlanner:
             # plot process in Rviz
             PathPlanner.publish_grid_cell(mapdata, self.frontier_pub, frontier_plot_list)
             PathPlanner.publish_grid_cell(mapdata, self.expanded_pub, visited_plot_list)
-            # print(all_path_list)
-            # print("\n\n")
-            # rospy.sleep(1)
+
+            rospy.sleep(0.02)
 
 
     @staticmethod
     def calc_g_value(from_path):
-        turn_weight = 0.1
+        """calculat g value based on real distance and number of turns"""
+        turn_weight = 0.7
         walk_distance = 0
         turn_count = 0
         for i in range(1,len(from_path)):
@@ -571,6 +554,7 @@ class PathPlanner:
 
     @staticmethod
     def print_map(mapdata):
+        """Print map in terminal"""
         width = mapdata.info.width
         height = mapdata.info.height
         map_array = mapdata.data
@@ -589,6 +573,7 @@ class PathPlanner:
 
     @staticmethod
     def print_num_value(mapdata, value_list):
+        """Print a numerical value for the whole map in terminal"""
         width = mapdata.info.width
         height = mapdata.info.height
 

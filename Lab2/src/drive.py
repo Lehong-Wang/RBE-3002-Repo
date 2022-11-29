@@ -7,9 +7,11 @@ import numpy as np
 
 from bezier import *
 import rospy
-from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
+from geometry_msgs.msg import Twist, Point, Pose, PoseStamped, PoseWithCovarianceStamped
+from nav_msgs.srv import GetPlan, GetMap
+from nav_msgs.msg import GridCells, OccupancyGrid, Path
 
 
 class Lab2:
@@ -19,7 +21,7 @@ class Lab2:
         Class constructor
         """
         ### Initialize node, name it 'lab2'
-        rospy.init_node('lab2')
+        rospy.init_node('lab2_drive_node')
 
         ### Tell ROS that this node publishes Twist messages on the '/cmd_vel' topic
         self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
@@ -31,8 +33,10 @@ class Lab2:
         ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
         ### When a message is received, call self.go_to
         # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.pos_to_robot_frame_callback)
-        self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
+        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
         # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
+        
+        self.goal_pose_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.call_astar)
 
         self.msg_cmd_vel = Twist() # Make a new Twist message
 
@@ -290,10 +294,6 @@ class Lab2:
         # rotaional_displacement = 2 * self.merge_angle("sub", line_angle, theta)
         # print(f"New rot: {rotaional_displacement}")
 
-        # rotaional_displacement = (rotaional_displacement + math.pi) % (2*math.pi) - math.pi
-        # print(f"rotational_displacement {rotaional_displacement}")
-
-        # raduis = (displacement/2) / (math.sin(abs(rotaional_displacement/2)) + 0.001)
         raduis = (displacement/2) / (math.sin(rotaional_displacement/2) + 0.001)
         print(f"raduis {raduis}")
         arc_length = raduis * rotaional_displacement
@@ -308,6 +308,11 @@ class Lab2:
 
 
     def run_wave_point_list_arc(self, wave_point_list, speed):
+        """
+        run wave points with short_arc
+        error (overshoot) in turn/arc will accumulate, 
+        making robot zig-zag between wave points 
+        """
         time_tolerance_factor = 1.2
 
         for point in wave_point_list:
@@ -324,7 +329,7 @@ class Lab2:
                 elapsed_t = current_t - start_t
                 dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
                 dist_list.append(dist)
-                print(dist)
+                # print(dist)
                 if elapsed_t > time_tolerance_factor * expected_time:
                     rospy.loginfo(f"Wave point {point} not reached in time, recalculating route.")
                     if dist_list[-1] > dist_list[-2] and dist_list[-2] > dist_list[-3]:
@@ -335,17 +340,20 @@ class Lab2:
             rospy.sleep(3)
 
 
-    def check_pos(self, target):
-        dist = math.sqrt((self.px-target[0])**2 + (self.py-target[1])**2)
-        print(dist)
-        return dist < self.check_pos_tolerance
-
 
 
     ################################# PID ###############################
 
 
     def pid_control(self, pose_x_y, speed, d_angle):
+        """
+        PID controller
+        linear speed is constant, angular speed is PD controled
+        :param pose_x_y Target  in (x,y)
+        :param speed            Linear speed
+        :d_angle                caculated derivative of angular speed
+        :return                 (linear_speed, angular_speed)
+        """
         x2, y2 = pose_x_y
 
         x1 = self.px
@@ -356,11 +364,13 @@ class Lab2:
         kd_angle = 1
 
         target_angle = math.atan2(y2-y1, x2-x1)
-        p_angle = target_angle - theta
+        p_angle = self.merge_angle("sub", target_angle, theta)
+        # print(f"th:{theta}, tar:{target_angle}, p:{p_angle}")
 
         v_angle = kp_angle * p_angle - kd_angle * d_angle
 
-        v_angle = min(v_angle, 10)
+        if abs(v_angle) > 10:
+            v_angle *= 10 / abs(v_angle)
 
         # self.send_speed(speed, v_angle)
         return (speed, v_angle)
@@ -369,6 +379,11 @@ class Lab2:
 
 
     def run_wave_point_list_pid(self, wave_point_list, speed):
+        """
+        run wave points with pid_control
+        Work very well
+        turn fast first and move straight
+        """
 
         rospy.loginfo(f"Wave Points: {wave_point_list}\nSpeed: {speed}")
         time_tolerance_factor = 1.2
@@ -379,6 +394,7 @@ class Lab2:
             print(f"Expected time: {expected_time}")
             start_t = self.get_time()
 
+            # distance to destination, for checking if goal is passed
             dist_list = []
             dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
             dist_list.append(dist)
@@ -394,19 +410,23 @@ class Lab2:
                 elapsed_t = current_t - start_t
                 dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
                 dist_list.append(dist)
-                print(dist)
+                # print(dist)
+                # if not reached after perdicted time
                 if elapsed_t > time_tolerance_factor * expected_time:
                     rospy.loginfo(f"Wave point {point} not reached in time, recalculating route.")
+                    # if moving away from target, stop
                     if dist_list[-1] > dist_list[-2] and dist_list[-2] > dist_list[-3]:
                         break
 
 
                 linear_speed, angular_speed = self.pid_control(virtrual_goal, speed, d_angle)
+                # smooth start and stop
                 if i == 0:
                     linear_speed, angular_speed = self.smooth_start(linear_speed, angular_speed, dist_list)
                 if i == len(wave_point_list) - 1:
                     linear_speed, angular_speed = self.smooth_stop(linear_speed, angular_speed, dist_list)
                 self.send_speed(linear_speed, angular_speed)
+                # calculate derivative of angular_speed
                 angular_speed_list.append(angular_speed)
                 d_angle = 1/2 * (angular_speed_list[-1] + angular_speed_list[-2])
 
@@ -421,6 +441,7 @@ class Lab2:
 
 
     def smooth_start(self, linear_speed, angular_speed, dist_list):
+        """slowly accelerates for first 10 commands"""
         full_start_length = 10
         current_length = len(dist_list)
         if current_length < full_start_length:
@@ -431,6 +452,7 @@ class Lab2:
 
 
     def smooth_stop(self, linear_speed, angular_speed, dist_list):
+        """slowly decelerates for the last 0.1 m"""
         start_break_dist = 0.1
         current_dist = dist_list[-1]
         if current_dist < start_break_dist:
@@ -443,6 +465,7 @@ class Lab2:
 
 
     def run_bezier_traj(self, msg):
+        """callback for bezier trajectory"""
         # TODO linear speed maye changable? maybe not
         linear_speed = 0.1
 
@@ -496,6 +519,57 @@ class Lab2:
 
 
 
+    ################################### service call #####################################
+
+
+
+
+
+    def call_astar(self, msg):
+        """
+        Creates the path using Astar from Rviz
+        This method is a callback bound to a Subscriber.
+        :param msg [PoseStamped] The goal pose.
+        """
+        ## Create service proxy
+        path_plan = rospy.ServiceProxy('plan_path', GetPlan)
+        initial_pose = PoseStamped()
+        
+        # Save the initial pose
+        initial_pose.pose.position.x = self.px
+        initial_pose.pose.position.y = self.py
+        initial_pose.pose.orientation.w = self.pth
+        
+        tolerance = 0.1
+        
+        send = path_plan(initial_pose, msg, tolerance)
+        rospy.loginfo("sent path from rviz")
+
+        print(send)
+        self.drive_along_path(send)
+    
+
+
+    def drive_along_path(self, msg):
+        """
+        given a nav_msgs/Path message
+        extract wave points
+        walk along wave points
+        """
+        wave_point_list = []
+        pose_msg_list = msg.plan.poses
+        for pose_msg in pose_msg_list:
+            x = pose_msg.pose.position.x
+            y = pose_msg.pose.position.y
+            wave_point_list.append((x,y))
+
+        print(f"Wave Points: {wave_point_list}")
+
+        self.run_wave_point_list_pid(wave_point_list, 0.1)
+
+
+
+
 
 
 
@@ -508,13 +582,10 @@ class Lab2:
         do operation (+/-) on two angle in range (-pi, pi)
         """
 
-        maped_th1 = th1 + math.pi
-        maped_th2 = th2 + math.pi
-
         if operation == "add":
-            ret = (maped_th1 + maped_th2) % math.pi - math.pi
+            ret = (th1 + th2 + 2*math.pi) % (2*math.pi) - math.pi
         elif operation == "sub":
-            ret = (maped_th1 - maped_th2) % math.pi - math.pi
+            ret = (th1 - th2 + math.pi) % (2*math.pi) - math.pi
         else:
             warn_str = f"Merge angle operation not recognized. Choose add or sub\n Given {operation}"
             warnings.warn(warn_str)
@@ -547,6 +618,7 @@ class Lab2:
 
 
     def pos_to_robot_frame(self,x,y,th=None):
+        """Transform world frame to robot frame"""
         if th is None:
             th = 0
 
@@ -580,41 +652,6 @@ class Lab2:
         rospy.sleep(1)
         print("Wake up")
 
-        # wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1), (1.2, 1.2), (1.5, 1.5), (2,2), (1,1)]
-        # # wave_points = [(0,0), (0.2,0.1),(0.22,0.12),(0.24,0.14),(0.26,0.16),(0.28,0.18),(0.30,0.20),(0.5, 0), (0.5,0.5), (1,1)]
-        # wave_points = [(0,0), (0.2,0.1), (0.5, 0.7), (1,1)]
-        # self.run_wave_point_list_pid(wave_points, 0.2)
-
-
-        # new_timer = rospy.Time.from_sec(0)
-
-        # self.test_arc((-1,1),10)
-        # rospy.sleep(1)
-        # self.test_arc((1.5,1),20)
-        # rospy.sleep(1)
-        # self.test_arc((1,-1),10)
-        # rospy.sleep(1)
-
-        # self.bezier_traj(1,2,3,4,5,6,7)
-        # self.test_arc((0.2,-0.5), 10)
-
-        # while not rospy.is_shutdown():
-        #     now = new_timer.now()
-        #     # now = rospy.get_rostime()
-        #     # rospy.loginfo("Current time", now.secs, now.nsecs)
-        #     print("Current time", now.secs, now.nsecs)
-        #     print(f"Timer {rospy.get_rostime().secs - self.start_timer.secs}")
-        #     rospy.sleep(0.5)
-
-        # self.short_arc((1,-1), 3)
-
-        # self.rotate(-21*math.pi/2, -0.2)
-        # while not rospy.is_shutdown():
-        #     self.send_speed(0,0.5)
-        # self.smooth_drive(3,0.2)
-        # while not rospy.is_shutdown():
-        # # self.send_speed(0.5, 1)
-        #     self.drive(1, 1)
         rospy.spin()
 
 if __name__ == '__main__':

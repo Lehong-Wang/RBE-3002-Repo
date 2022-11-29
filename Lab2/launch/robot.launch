@@ -5,7 +5,7 @@
    <!-- roslaunch turtlebot3_gazebo turtlebot3_empty_world.launch -->
   <!-- <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_empty_world.launch"/> -->
   <!-- rosrun Lab2 lab2.py -->
-  <node pkg="Lab2" type="lab2.py" name="lab2_node" output="screen" />
+  <node pkg="Lab2" type="drive.py" name="lab2_drive_node" output="screen" />
 
 </launch>
 
