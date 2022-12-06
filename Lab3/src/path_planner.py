@@ -46,6 +46,11 @@ class PathPlanner:
         # TODO
         self.request = 0
 
+        self.map_sub = rospy.Subscriber('/map', OccupancyGrid, self.update_map)
+
+        self.g_map_data = None
+        # global g_map_data
+        # g_map_data = None
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
@@ -241,24 +246,38 @@ class PathPlanner:
         return walkable_neighbors
 
 
-    # TESTED
-    @staticmethod
-    def request_map():
-        """
-        Requests the map from the map server.
-        :return [OccupancyGrid] The grid if the service call was successful,
-                                None in case of error.
-        """
-        ### REQUIRED CREDIT
-        rospy.loginfo("Requesting the map")
-        try:
-            rospy.wait_for_service('static_map') # Block until service is available
-            grid = rospy.ServiceProxy('static_map', GetMap)
-        except Exception:
-            print(f"Error when requesting map\n{Exception}")
-            return None
+    # # TESTED
+    # @staticmethod
+    # def request_map():
+    #     """
+    #     Requests the map from the map server.
+    #     :return [OccupancyGrid] The grid if the service call was successful,
+    #                             None in case of error.
+    #     """
+    #     ### REQUIRED CREDIT
+    #     rospy.loginfo("Requesting the map")
+    #     try:
+    #         rospy.wait_for_service('static_map') # Block until service is available
+    #         grid = rospy.ServiceProxy('static_map', GetMap)
+    #     except Exception:
+    #         print(f"Error when requesting map\n{Exception}")
+    #         return None
 
-        return grid().map
+    #     return grid().map
+
+    def update_map(self, msg):
+        # global g_map_data
+        # g_map_data = msg
+        self.g_map_data = msg
+        # print(g_map_data)
+
+    def request_map(self):
+        if self.g_map_data is not None:
+            # PathPlanner.print_map(g_map_data)
+            pass
+        else:
+            warnings.warn("Error: Empty map")
+        return self.g_map_data
 
 
     # TESTED
@@ -534,7 +553,8 @@ class PathPlanner:
         """
         ## Request the map
         ## In case of error, return an empty path
-        mapdata = PathPlanner.request_map()
+        # mapdata = PathPlanner.request_map()
+        mapdata = self.request_map()
         if mapdata is None:
             return Path()
         ## Calculate the C-space and publish it
@@ -653,7 +673,7 @@ class PathPlanner:
         """
         Runs the node until Ctrl-C is pressed.
         """
-        mapdata = PathPlanner.request_map()
+
         # mapdata = PathPlanner.get_test_map()
 
         # print(mapdata)

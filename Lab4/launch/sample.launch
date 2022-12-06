@@ -1,6 +1,7 @@
 <launch>
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
-        <arg name="world_name" value="$(find rbe3002_final)/worlds/final_maze.world"/>
+        <!-- <arg name="world_name" value="$(find rbe3002_final)/worlds/final_maze.world"/> -->
+        <arg name="world_name" value="$(find Lab4)/worlds/final_maze.world"/>
         <arg name="x_pos" value="-2.2"/>
         <arg name="y_pos" value="0.4"/>
         <arg name="z_pos" value="0.05"/>

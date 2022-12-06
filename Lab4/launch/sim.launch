@@ -1,0 +1,17 @@
+
+
+<launch>
+  <!-- <include file="$(find Lab4)/launch/practice_exploration.launch"/> -->
+  <include file="$(find Lab4)/launch/maze_sim.launch"/>
+  <!-- roslaunch turtlebot3_slam turtlebot3_slam.launch slam_methods:=gmapping -->
+  <include file="$(find turtlebot3_slam)/launch/turtlebot3_slam.launch">
+    <param name="slam_methods" type="string" value="gmapping"/>
+  </include>
+
+<!-- roslaunch turtlebot3_bringup turtlebot3_remote.launch ^C -->
+  <!-- <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch"/> -->
+
+  
+</launch>
+
+

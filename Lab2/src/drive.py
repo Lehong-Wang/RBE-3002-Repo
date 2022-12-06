@@ -446,7 +446,7 @@ class Lab2:
         current_length = len(dist_list)
         if current_length < full_start_length:
             linear_speed = linear_speed * current_length / full_start_length
-            print(f"Speed: {linear_speed}")
+            # print(f"Speed: {linear_speed}")
 
         return linear_speed, angular_speed
 
@@ -457,7 +457,7 @@ class Lab2:
         current_dist = dist_list[-1]
         if current_dist < start_break_dist:
             linear_speed = linear_speed * current_dist*10
-            print(f"Speed: {linear_speed}")
+            # print(f"Speed: {linear_speed}")
         return linear_speed, angular_speed
 
 
