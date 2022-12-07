@@ -193,7 +193,7 @@ class PathPlanner:
     @staticmethod
     def is_cell_free(mapdata, x, y):
         index = PathPlanner.grid_to_index(mapdata, x, y)
-        is_free = not mapdata.data[index]
+        is_free = mapdata.data[index] == 0 or mapdata.data[index] == -1
         return is_free
 
     @staticmethod

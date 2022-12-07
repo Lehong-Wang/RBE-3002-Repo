@@ -3,15 +3,15 @@
 <launch>
   <!-- <include file="$(find Lab4)/launch/practice_exploration.launch"/> -->
   <include file="$(find Lab4)/launch/maze_sim.launch"/>
-  <!-- roslaunch turtlebot3_slam turtlebot3_slam.launch slam_methods:=gmapping -->
-  <include file="$(find turtlebot3_slam)/launch/turtlebot3_slam.launch">
+ <include file="$(find Lab4)/launch/slam.launch">
     <param name="slam_methods" type="string" value="gmapping"/>
   </include>
 
-<!-- roslaunch turtlebot3_bringup turtlebot3_remote.launch ^C -->
   <!-- <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch"/> -->
-
+  <!-- <node name="rviz_lab4" pkg="rviz" type="rviz" args="-d $(find Lab4)/rviz/rbe3002_lab4.rviz"/> -->
   
+  <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="burger"/>
+
 </launch>
 
 
