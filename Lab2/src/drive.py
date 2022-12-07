@@ -545,7 +545,7 @@ class Lab2:
         send = path_plan(initial_pose, msg, tolerance)
         rospy.loginfo("sent path from rviz")
 
-        print(send)
+        # print(send)
         self.drive_along_path(send)
     
 

@@ -41,10 +41,9 @@ class PathPlanner:
         self.unexplored_pub = rospy.Publisher('/path_planner/unexplored', GridCells, queue_size=10)
 
         self.path_pub = rospy.Publisher('/path_planner/path', Path, queue_size=10)
-        
-        ## Initialize the request counter
-        # TODO
-        self.request = 0
+
+
+        self.cspace_value = 3
 
         self.map_sub = rospy.Subscriber('/map', OccupancyGrid, self.update_map)
 
@@ -197,6 +196,17 @@ class PathPlanner:
         is_free = not mapdata.data[index]
         return is_free
 
+    @staticmethod
+    def is_cell_not_wall(mapdata, x, y):
+        within_bound = x < mapdata.info.width and \
+                        y < mapdata.info.height and \
+                            min(x,y) >= 0
+
+        index = PathPlanner.grid_to_index(mapdata, x, y)
+        is_wall = mapdata.data[index] == 100
+        return within_bound and not is_wall
+
+
     # TESTED
     @staticmethod
     def neighbors_of_4(mapdata, x, y):
@@ -333,7 +343,7 @@ class PathPlanner:
                 if neighbor_all_free:
                     new_map_array.append(mapdata.data[PathPlanner.grid_to_index(mapdata, x, y)])
                 else:
-                    new_map_array.append(100)
+                    new_map_array.append(10)
                     paded_cell_list.append((x,y))
 
         cspace.header.frame_id = "map"
@@ -363,7 +373,28 @@ class PathPlanner:
         return cspace
 
 
-    
+    def go_out_of_cspace(self, mapdata, coord):
+
+        search_dir_list = [(1,0), (0,1), (-1,0), (0,-1), (1,1), (1,-1), (-1,-1), (-1,1)]
+        
+
+        for dir in search_dir_list:
+            for dist in range(self.cspace_value):
+                x = coord[0] + dir[0] * (dist+1)
+                y = coord[1] + dir[1] * (dist+1)
+                # is cell is wall, discard this direction
+                if not PathPlanner.is_cell_not_wall(mapdata, x, y):
+                    break
+                if PathPlanner.is_cell_walkable(mapdata, x, y):
+                    print(f"Out of cspace: {coord} -> {(x,y)}")
+                    return (x, y)
+        warn_str = f"Error: {coord} is trapped"
+        warnings.warn(warn_str)
+        return None
+
+
+
+
     def a_star(self, mapdata, start, goal):
         """
         return list of tuples (x,y) as path
@@ -375,10 +406,17 @@ class PathPlanner:
         height = mapdata.info.height
         map_array = mapdata.data
 
+        start_path = [start]
         if not PathPlanner.is_cell_walkable(mapdata, start[0], start[1]):
             warn_str = f"Error: Start grid is not walkable {start}"
             warnings.warn(warn_str)
-            return []
+            out_start = self.go_out_of_cspace(mapdata, start)
+            if out_start is None:
+                return []
+            else:
+                start_path = [start, out_start]
+                start = out_start
+
         if not PathPlanner.is_cell_walkable(mapdata, goal[0], goal[1]):
             warn_str = f"Error: Goal grid is not walkable {goal}"
             warnings.warn(warn_str)
@@ -401,11 +439,12 @@ class PathPlanner:
         for i in range(len(map_array)):
             x,y = PathPlanner.index_to_grid(mapdata, i)
             h_list[i] = (PathPlanner.euclidean_distance(x, y, goal[0], goal[1]))
+        print("h calculated")
 
         # fill in start node
         g_list[start_index] = 0
         f_list[start_index] = g_list[start_index] + h_list[start_index]
-        all_path_list[start_index] = [start]
+        all_path_list[start_index] = start_path
         pq.put(start, f_list[start_index])
 
         frontier_plot_list = []
@@ -447,6 +486,9 @@ class PathPlanner:
 
                 path_value = neighbor_path
                 g_value = PathPlanner.calc_g_value(neighbor_path)
+                x,y = PathPlanner.index_to_grid(mapdata, neib_i)
+                h_list[neib_i] = (PathPlanner.euclidean_distance(x, y, goal[0], goal[1]))
+
                 f_value = g_value + h_list[neib_i]
 
                 # if successfully put, return True
@@ -461,11 +503,12 @@ class PathPlanner:
             visited_list[current_i] = True
             visited_plot_list.append(current)
 
-            # plot process in Rviz
-            PathPlanner.publish_grid_cell(mapdata, self.frontier_pub, frontier_plot_list)
-            PathPlanner.publish_grid_cell(mapdata, self.expanded_pub, visited_plot_list)
+            # # plot process in Rviz
+            # PathPlanner.publish_grid_cell(mapdata, self.frontier_pub, frontier_plot_list)
+            # PathPlanner.publish_grid_cell(mapdata, self.expanded_pub, visited_plot_list)
 
-            rospy.sleep(0.02)
+            # rospy.sleep(0.02)
+        return []
 
 
     @staticmethod
@@ -505,6 +548,10 @@ class PathPlanner:
         """
         ### EXTRA CREDIT
         rospy.loginfo("Optimizing path")
+
+        if len(path) == 0:
+            warnings.warn("Path is empty")
+            return []
 
         new_path = []
         new_path.append(path[0])
@@ -558,7 +605,7 @@ class PathPlanner:
         if mapdata is None:
             return Path()
         ## Calculate the C-space and publish it
-        cspacedata = self.calc_cspace(mapdata, 1)
+        cspacedata = self.calc_cspace(mapdata, self.cspace_value)
         ## Execute A*
         start = PathPlanner.world_to_grid(mapdata, msg.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
@@ -633,18 +680,18 @@ class PathPlanner:
     @staticmethod
     def get_test_map():
         mapdata = OccupancyGrid()
-        # mapdata.info.width = 4
-        # mapdata.info.height = 4
-        # mapdata.data = (100,0,0,0, 0,0,100,0, 0,0,0,0, 0,0,100,100)
+        mapdata.info.width = 4
+        mapdata.info.height = 4
+        mapdata.data = (0,0,0,0, 0,0,0,0, 100,0,0,0, 0,0,100,100)
 
         # mapdata.info.width = 3
         # mapdata.info.height = 3
         # mapdata.data = (100,0,0, 0,0,0, 0,100,100)
 
-        mapdata.info.width = 20
-        mapdata.info.height = 20
-        empty = [0]*400
-        mapdata.data = tuple(empty)
+        # mapdata.info.width = 20
+        # mapdata.info.height = 20
+        # empty = [0]*400
+        # mapdata.data = tuple(empty)
 
         return mapdata
 
@@ -675,6 +722,9 @@ class PathPlanner:
         """
 
         # mapdata = PathPlanner.get_test_map()
+        # c_map = self.calc_cspace(mapdata, 2)
+        # PathPlanner.print_map(c_map)
+        # self.go_out_of_cspace(c_map,(0,3))
 
         # print(mapdata)
         # PathPlanner.print_map(mapdata)
