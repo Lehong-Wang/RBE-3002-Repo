@@ -14,6 +14,13 @@ from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 
 
+
+LINEAR_MAX = 0.05
+ANGULAR_MAX = 0.1
+
+LINEAR_MAX = 0.2
+ANGULAR_MAX = 10
+
 class Lab2:
 
     def __init__(self):
@@ -35,14 +42,16 @@ class Lab2:
         # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.pos_to_robot_frame_callback)
         # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
         # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
-        
+
         self.goal_pose_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.call_astar)
+        # self.goal_pose_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.pid_callback)
 
         self.msg_cmd_vel = Twist() # Make a new Twist message
 
         self.rate = rospy.Rate(50) # 10hz
         self.check_pos_rate = rospy.Rate(20)
         self.check_pos_tolerance = 0.03
+
 
         # Robot pos
         self.px = 0
@@ -217,36 +226,8 @@ class Lab2:
         desired_pth = yaw
         print(f"PoseStamped {(round(desired_px,3), round(desired_py,3), round(desired_pth,3))}")
         print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
-        
-        # Calculate the rotation needed based on desired position
-        x_change = desired_px - initial_px
-        y_change = desired_py - initial_py
-        angle = math.atan2(y_change, x_change)
-        
-        # Call rotate()
-        print(f"Rotating {angle - self.pth}")
-        self.rotate(angle - self.pth, 0.5)
-        self.send_speed(0, 0)
-        rospy.sleep(0.5)
-        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
-        
-        # # Calculate the distance needed based on desired position
-        # target_distance = math.sqrt((desired_px-initial_px)**2 + (desired_py-initial_py)**2)
-        # print(f'target Distnace: {target_distance}')
-        
-        # # Call drive()
-        # self.drive(target_distance, 0.1)
-        # self.send_speed(0, 0)
-        # rospy.sleep(0.5)
-        # print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
-        
-        self.drive_with_correction((desired_px, desired_py), 0.1)
 
-        # Call rotate for the rest of the rotation needed
-        print(f"Rotating {desired_pth - self.pth}")
-        self.rotate(desired_pth - self.pth, 0.5)
-        self.send_speed(0, 0)
-        rospy.sleep(0.5)
+        self.run_wave_point_list_goto([(desired_px, desired_py)], LINEAR_MAX, ANGULAR_MAX)
         
         print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
         print(f"Finished\nInitial{(initial_px, initial_py, initial_pth)}")
@@ -254,6 +235,35 @@ class Lab2:
         print(f"Goal {(desired_px, desired_py, desired_pth)}")
 
 
+
+    def run_wave_point_list_goto(self, wave_point_list, linear_speed, angular_speed):
+
+
+        for point in wave_point_list:
+            desired_px,desired_py = point
+            initial_px = self.px
+            initial_py = self.py
+
+
+            print(f"PoseStamped {(round(desired_px,3), round(desired_py,3))}")
+            print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+
+            # Calculate the rotation needed based on desired position
+            x_change = desired_px - initial_px
+            y_change = desired_py - initial_py
+            angle = math.atan2(y_change, x_change)
+
+            # Call rotate()
+            print(f"Rotating {angle - self.pth}")
+            self.rotate(angle - self.pth, angular_speed)
+            self.send_speed(0, 0)
+            rospy.sleep(0.5)
+            print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+
+            self.drive_with_correction((desired_px, desired_py), linear_speed)
+
+            self.send_speed(0, 0)
+            rospy.sleep(0.5)
 
 
 
@@ -369,8 +379,8 @@ class Lab2:
 
         v_angle = kp_angle * p_angle - kd_angle * d_angle
 
-        if abs(v_angle) > 10:
-            v_angle *= 10 / abs(v_angle)
+        if abs(v_angle) > ANGULAR_MAX:
+            v_angle *= ANGULAR_MAX / abs(v_angle)
 
         # self.send_speed(speed, v_angle)
         return (speed, v_angle)
@@ -413,7 +423,7 @@ class Lab2:
                 # print(dist)
                 # if not reached after perdicted time
                 if elapsed_t > time_tolerance_factor * expected_time:
-                    rospy.loginfo(f"Wave point {point} not reached in time, recalculating route.")
+                    # rospy.loginfo(f"Wave point {point} not reached in time, recalculating route.")
                     # if moving away from target, stop
                     if dist_list[-1] > dist_list[-2] and dist_list[-2] > dist_list[-3]:
                         break
@@ -459,6 +469,18 @@ class Lab2:
             linear_speed = linear_speed * current_dist*10
             # print(f"Speed: {linear_speed}")
         return linear_speed, angular_speed
+
+
+    def pid_callback(self, msg):
+
+        # Store the message position
+        desired_px = msg.pose.position.x
+        desired_py = msg.pose.position.y
+
+        print(f"PoseStamped {(round(desired_px,3), round(desired_py,3))}")
+        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+        
+        self.run_wave_point_list_pid([(desired_px, desired_py)], LINEAR_MAX)
 
 
     ################################# Bezier ###############################
@@ -565,7 +587,8 @@ class Lab2:
 
         print(f"Wave Points: {wave_point_list}")
 
-        self.run_wave_point_list_pid(wave_point_list, 0.1)
+        # self.run_wave_point_list_pid(wave_point_list, 0.1)
+        self.run_wave_point_list_goto(wave_point_list, LINEAR_MAX, ANGULAR_MAX)
 
 
 
@@ -651,6 +674,8 @@ class Lab2:
         print("Sleep")
         rospy.sleep(1)
         print("Wake up")
+
+        # self.rotate(math.pi/2, 0.3)
 
         rospy.spin()
 

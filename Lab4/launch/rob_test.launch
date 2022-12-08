@@ -1,0 +1,14 @@
+
+
+<launch>
+
+  <!-- roslaunch turtlebot3_slam turtlebot3_slam.launch slam_methods:=gmapping -->
+  <include file="$(find Lab4)/launch/slam.launch">
+    <param name="slam_methods" type="string" value="gmapping"/>
+  </include>
+
+  <!-- <node name="rviz_lab4" pkg="rviz" type="rviz" args="-d $(find Lab4)/rviz/rbe3002_lab4.rviz"/> -->
+
+
+</launch>
+

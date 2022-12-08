@@ -43,7 +43,7 @@ class PathPlanner:
         self.path_pub = rospy.Publisher('/path_planner/path', Path, queue_size=10)
 
 
-        self.cspace_value = 3
+        self.cspace_value = 4
 
         self.map_sub = rospy.Subscriber('/map', OccupancyGrid, self.update_map)
 
