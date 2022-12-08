@@ -25,17 +25,14 @@ class PathPlanner:
         
         ## Create a new service called "plan_path" that accepts messages of
         ## type GetPlan and calls self.plan_path() when a message is received
-        # TODO
         self.plan_path_service = rospy.Service('plan_path', GetPlan, self.plan_path)
         
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
-        # TODO
         self.cspace_pub = rospy.Publisher('/path_planner/cspace', GridCells, queue_size=10)
         
         ## Create publishers for A* (expanded cells, frontier, ...)
         ## Choose the topic names, the message type is GridCells
-        # TODO
         self.expanded_pub = rospy.Publisher('/path_planner/expanded', GridCells, queue_size=10)
         self.frontier_pub = rospy.Publisher('/path_planner/frontier', GridCells, queue_size=10)
         self.unexplored_pub = rospy.Publisher('/path_planner/unexplored', GridCells, queue_size=10)
@@ -43,13 +40,9 @@ class PathPlanner:
         self.path_pub = rospy.Publisher('/path_planner/path', Path, queue_size=10)
 
 
-        self.cspace_value = 4
+        self.cspace_value = 3
 
-        self.map_sub = rospy.Subscriber('/map', OccupancyGrid, self.update_map)
 
-        self.g_map_data = None
-        # global g_map_data
-        # g_map_data = None
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
@@ -103,7 +96,7 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         return math.sqrt((x1-x2) ** 2 + (y1-y2) ** 2)
-        
+
 
 
     @staticmethod
@@ -121,7 +114,7 @@ class PathPlanner:
         point.y = (y+0.5) * mapdata.info.resolution + mapdata.info.origin.position.y
         return point
 
-        
+
     @staticmethod
     def world_to_grid(mapdata, wp):
         """
@@ -183,10 +176,6 @@ class PathPlanner:
 
         index = PathPlanner.grid_to_index(mapdata, x, y)
         is_free = not mapdata.data[index]
-        # print(f"Walk {(x,y)}")
-        # print(within_bound)
-        # print(is_free)
-
         return within_bound & is_free
 
 
@@ -230,7 +219,7 @@ class PathPlanner:
                 walkable_neighbors.append(neighbor)
         return walkable_neighbors
 
-    
+
     # TESTED
     @staticmethod
     def neighbors_of_8(mapdata, x, y):
@@ -256,38 +245,26 @@ class PathPlanner:
         return walkable_neighbors
 
 
-    # # TESTED
-    # @staticmethod
-    # def request_map():
-    #     """
-    #     Requests the map from the map server.
-    #     :return [OccupancyGrid] The grid if the service call was successful,
-    #                             None in case of error.
-    #     """
-    #     ### REQUIRED CREDIT
-    #     rospy.loginfo("Requesting the map")
-    #     try:
-    #         rospy.wait_for_service('static_map') # Block until service is available
-    #         grid = rospy.ServiceProxy('static_map', GetMap)
-    #     except Exception:
-    #         print(f"Error when requesting map\n{Exception}")
-    #         return None
+    # TESTED
+    @staticmethod
+    def request_map():
+        """
+        Requests the map from the map server.
+        :return [OccupancyGrid] The grid if the service call was successful,
+                                None in case of error.
+        """
+        ### REQUIRED CREDIT
+        rospy.loginfo("Requesting the map")
+        try:
+            rospy.wait_for_service('dynamic_map') # Block until service is available
+            grid = rospy.ServiceProxy('dynamic_map', GetMap)
+        except Exception:
+            print(f"Error when requesting map\n{Exception}")
+            return None
 
-    #     return grid().map
+        return grid().map
 
-    def update_map(self, msg):
-        # global g_map_data
-        # g_map_data = msg
-        self.g_map_data = msg
-        # print(g_map_data)
 
-    def request_map(self):
-        if self.g_map_data is not None:
-            # PathPlanner.print_map(g_map_data)
-            pass
-        else:
-            warnings.warn("Error: Empty map")
-        return self.g_map_data
 
 
     # TESTED
@@ -305,25 +282,20 @@ class PathPlanner:
 
         ## Go through each cell in the occupancy grid
         ## Inflate the obstacles where necessary
-        # TODO
         width = mapdata.info.width
         height = mapdata.info.height
         resolution = mapdata.info.resolution
-        map_array = mapdata.data
         paded_cell_list = []
         new_map_array = []
 
         for y in range(height):
             for x in range(width):
-                # print(f"padding {(x,y)}")
 
+                # is wall, copy
                 if not PathPlanner.is_cell_walkable(mapdata, x, y):
                     new_map_array.append(mapdata.data[PathPlanner.grid_to_index(mapdata, x, y)])
-                    # print("continue")
                     continue
 
-                pad_x_range = (x - padding, x + padding+1)
-                pad_y_range = (y - padding, y + padding+1)
 
                 neighbor_all_free = True
                 for pad_x in range(x - padding, x + padding+1):
@@ -333,16 +305,19 @@ class PathPlanner:
                     for pad_y in range(y - padding, y + padding+1):
                         if not neighbor_all_free:
                             break
+
+                        # see if neighbor is wall
                         within_bound = pad_x < mapdata.info.width and \
                             pad_y < mapdata.info.height and \
                             min(pad_x,pad_y) >= 0
 
                         if within_bound:
                             neighbor_all_free &= PathPlanner.is_cell_free(mapdata, pad_x, pad_y)
-
+                # not neighbor with wall, unchanged
                 if neighbor_all_free:
                     new_map_array.append(mapdata.data[PathPlanner.grid_to_index(mapdata, x, y)])
                 else:
+                    # value = 10 for cspace
                     new_map_array.append(10)
                     paded_cell_list.append((x,y))
 
@@ -352,21 +327,15 @@ class PathPlanner:
         # PathPlanner.print_map(cspace)
 
         ## Create a GridCells message and publish it
-        # TODO
         grid_cell = GridCells()
         grid_cell.header.frame_id = "map"
         grid_cell.cell_width = resolution
         grid_cell.cell_height = resolution
         point_list = []
-        terminal_plot_mapdata = copy.deepcopy(mapdata)
 
         for cell in paded_cell_list:
-            # point_list.append(Point(cell[0], cell[1], 0))
             point_list.append(PathPlanner.grid_to_world(mapdata, cell[0], cell[1]))
-            terminal_plot_mapdata = PathPlanner.modify_map(terminal_plot_mapdata, cell[0], cell[1], 10)
         grid_cell.cells = point_list
-        # PathPlanner.print_map(terminal_plot_mapdata)
-        # PathPlanner.print_map(mapdata)
 
         self.cspace_pub.publish(grid_cell)
         ## Return the C-space
@@ -374,9 +343,8 @@ class PathPlanner:
 
 
     def go_out_of_cspace(self, mapdata, coord):
-
+        """if robot in C space, add a path to go out"""
         search_dir_list = [(1,0), (0,1), (-1,0), (0,-1), (1,1), (1,-1), (-1,-1), (-1,1)]
-        
 
         for dir in search_dir_list:
             for dist in range(self.cspace_value):
@@ -432,8 +400,6 @@ class PathPlanner:
         pq = priority_queue.PriorityQueue()
 
         start_index = PathPlanner.grid_to_index(mapdata, start[0], start[1])
-        # print(f"start_index: {start_index}")
-        goal_index = PathPlanner.grid_to_index(mapdata, goal[0], goal[1])
 
         # calculate h
         for i in range(len(map_array)):
@@ -600,8 +566,7 @@ class PathPlanner:
         """
         ## Request the map
         ## In case of error, return an empty path
-        # mapdata = PathPlanner.request_map()
-        mapdata = self.request_map()
+        mapdata = PathPlanner.request_map()
         if mapdata is None:
             return Path()
         ## Calculate the C-space and publish it
@@ -663,7 +628,7 @@ class PathPlanner:
             print("\n", end="")
 
 
-    
+
     @staticmethod
     def modify_map(mapdata, x, y, value):
         # print(f"@ modify_map {(x,y,value)}")
@@ -674,7 +639,7 @@ class PathPlanner:
         new_mapdata.header = mapdata.header
         new_mapdata.info = mapdata.info
         new_mapdata.data = map_array
-        
+
         return new_mapdata
 
     @staticmethod
@@ -683,15 +648,6 @@ class PathPlanner:
         mapdata.info.width = 4
         mapdata.info.height = 4
         mapdata.data = (0,0,0,0, 0,0,0,0, 100,0,0,0, 0,0,100,100)
-
-        # mapdata.info.width = 3
-        # mapdata.info.height = 3
-        # mapdata.data = (100,0,0, 0,0,0, 0,100,100)
-
-        # mapdata.info.width = 20
-        # mapdata.info.height = 20
-        # empty = [0]*400
-        # mapdata.data = tuple(empty)
 
         return mapdata
 
@@ -721,33 +677,8 @@ class PathPlanner:
         Runs the node until Ctrl-C is pressed.
         """
 
-        # mapdata = PathPlanner.get_test_map()
-        # c_map = self.calc_cspace(mapdata, 2)
-        # PathPlanner.print_map(c_map)
-        # self.go_out_of_cspace(c_map,(0,3))
-
-        # print(mapdata)
-        # PathPlanner.print_map(mapdata)
-
-        # print("\n")
-        # print(PathPlanner.neighbors_of_8(mapdata, 4, 3))
-
-        # new_mapdata = PathPlanner.modify_map(mapdata, 3, 4, 10)
-        # PathPlanner.print_map(new_mapdata)
-        
-        # self.calc_cspace(mapdata, 2)
-        # print(PathPlanner.is_cell_free(mapdata, 2,2))
-
-        # rospy.spin()
-
-        # print(PathPlanner.is_cell_walkable(mapdata,0,0))
-
-
-        # print(self.a_star(mapdata, (0,1), (2,2)))
-        #self.a_star(mapdata, (1,1), (35,35))
-
         rospy.spin()
 
-        
+
 if __name__ == '__main__':
     PathPlanner().run()

@@ -16,10 +16,10 @@ from nav_msgs.msg import GridCells, OccupancyGrid, Path
 
 
 LINEAR_MAX = 0.05
-ANGULAR_MAX = 0.1
+ANGULAR_MAX = 0.15
 
-LINEAR_MAX = 0.2
-ANGULAR_MAX = 10
+# LINEAR_MAX = 0.2
+# ANGULAR_MAX = 2
 
 class Lab2:
 
@@ -178,8 +178,7 @@ class Lab2:
         # Process input
         aspeed = abs(aspeed)    # speed is positive
         angle = (angle+math.pi) % (2*math.pi) - math.pi   # make angle (-pi, pi)
-        # angle = (angle+math.pi) % (2*math.pi)   # make angle (0, 2*pi)
-        
+
         # Go reverse when angle < 0
         if angle < 0:
             aspeed = -aspeed
@@ -203,7 +202,7 @@ class Lab2:
         self.send_speed(0, 0)
         print(f"Finished Rotate {angle}")
         print(f"From: {initial_pth}\tTo: {self.pth}")
-        
+
 
 
     def go_to(self, msg):
@@ -224,15 +223,15 @@ class Lab2:
         quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
         ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
         desired_pth = yaw
-        print(f"PoseStamped {(round(desired_px,3), round(desired_py,3), round(desired_pth,3))}")
-        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+
+        rospy.loginfo(f"Go_To:\nfrom {(round(self.px,3), round(self.py,3), round(self.pth,3))} \
+            \nTo {(round(desired_px,3), round(desired_py,3))}")
 
         self.run_wave_point_list_goto([(desired_px, desired_py)], LINEAR_MAX, ANGULAR_MAX)
-        
-        print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+
+        print(f"Final {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
         print(f"Finished\nInitial{(initial_px, initial_py, initial_pth)}")
-        print(f"Final{(self.px, self.py, self.pth)}")
-        print(f"Goal {(desired_px, desired_py, desired_pth)}")
+        print(f"Goal {(round(desired_px, 3), round(desired_py, 3))}")
 
 
 
@@ -245,7 +244,7 @@ class Lab2:
             initial_py = self.py
 
 
-            print(f"PoseStamped {(round(desired_px,3), round(desired_py,3))}")
+            print(f"Wave Point {(round(desired_px,3), round(desired_py,3))}")
             print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
 
             # Calculate the rotation needed based on desired position
@@ -254,8 +253,9 @@ class Lab2:
             angle = math.atan2(y_change, x_change)
 
             # Call rotate()
-            print(f"Rotating {angle - self.pth}")
-            self.rotate(angle - self.pth, angular_speed)
+            angle_diff = self.merge_angle("sub", angle, self.pth)
+            print(f"Rotating {angle_diff}")
+            self.rotate(angle_diff, angular_speed)
             self.send_speed(0, 0)
             rospy.sleep(0.5)
             print(f"Current pose {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
@@ -264,90 +264,6 @@ class Lab2:
 
             self.send_speed(0, 0)
             rospy.sleep(0.5)
-
-
-
-
-
-
-
-
-    ################################# Arc ###############################
-
-
-
-    def short_arc(self, pose_x_y, speed):
-        """
-        drive to target with short arc
-        a lot of aprocimation, work better for straighter path
-        :param [(x,y)] The target pose.
-        :param [m/s] linear speed
-        :return [s] total expected time to complete arc
-        """
-        x2, y2 = pose_x_y
-
-        x1 = self.px
-        y1 = self.py
-        theta = self.pth
-
-        # aprocimation arc with straight line
-        displacement = math.sqrt((y2-y1)**2 + (x2-x1)**2)
-        # print(f"displacement {displacement}")
-
-        # angle between start-goal line and horizontal line
-        line_angle = math.atan2(y2-y1, x2-x1)
-        # angle between start orientation and goal orientation
-        # TODO 
-        # how to add two angles properly? (-pi, pi)
-        rotaional_displacement = 2 * (line_angle - theta)
-        print(f"Old rot: {rotaional_displacement}")
-        # rotaional_displacement = 2 * self.merge_angle("sub", line_angle, theta)
-        # print(f"New rot: {rotaional_displacement}")
-
-        raduis = (displacement/2) / (math.sin(rotaional_displacement/2) + 0.001)
-        print(f"raduis {raduis}")
-        arc_length = raduis * rotaional_displacement
-        print(f"arc_length {arc_length}")
-        total_time = arc_length / speed
-        angular_speed = rotaional_displacement / total_time
-        print(f"speed {(speed, angular_speed)}")
-        self.send_speed(speed, angular_speed)
-        return total_time
-
-
-
-
-    def run_wave_point_list_arc(self, wave_point_list, speed):
-        """
-        run wave points with short_arc
-        error (overshoot) in turn/arc will accumulate, 
-        making robot zig-zag between wave points 
-        """
-        time_tolerance_factor = 1.2
-
-        for point in wave_point_list:
-            expected_time = self.short_arc(point, speed)
-            print(f"Expected time: {expected_time}")
-            start_t = self.get_time()
-
-            dist_list = []
-            dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
-            dist_list.append(dist)
-
-            while dist > self.check_pos_tolerance:
-                current_t = self.get_time()
-                elapsed_t = current_t - start_t
-                dist = math.sqrt((self.px-point[0])**2 + (self.py-point[1])**2)
-                dist_list.append(dist)
-                # print(dist)
-                if elapsed_t > time_tolerance_factor * expected_time:
-                    rospy.loginfo(f"Wave point {point} not reached in time, recalculating route.")
-                    if dist_list[-1] > dist_list[-2] and dist_list[-2] > dist_list[-3]:
-                        break
-
-                self.check_pos_rate.sleep()
-            self.send_speed(0,0)
-            rospy.sleep(3)
 
 
 
@@ -483,61 +399,6 @@ class Lab2:
         self.run_wave_point_list_pid([(desired_px, desired_py)], LINEAR_MAX)
 
 
-    ################################# Bezier ###############################
-
-
-    def run_bezier_traj(self, msg):
-        """callback for bezier trajectory"""
-        # TODO linear speed maye changable? maybe not
-        linear_speed = 0.1
-
-        x1 = self.px
-        y1 = self.py
-        th1 = self.pth
-
-        x2 = msg.pose.position.x
-        y2 = msg.pose.position.y
-        quat_orig = msg.pose.orientation
-        quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
-        ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
-        th2 = yaw
-
-        bezier_traj, total_time = self.bezier_traj(x1,y1,th1, x2,y2,th2, linear_speed)
-
-        wave_points = bezier_traj.get_wave_points(10)
-
-        self.run_wave_point_list_pid(wave_points, 0.1)
-
-
-
-
-    def bezier_traj(self, x1, y1, th1, x2, y2, th2, linear_speed):
-        """
-        take in start and end pose (x,y,theta) and linear speed
-        return a time dependent bezier trajectory and its total time
-        """
-
-        # TODO case of only one control point needed
-        # TODO better calculation for control dist for smoother curve
-
-        control_dist = math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
-        # control point 1 is control_dist alone th1
-        p1x = x1 + math.cos(th1) * control_dist
-        p1y = y1 + math.sin(th1) * control_dist
-        # p2 is dist alone negative th2
-        p2x = x2 - math.cos(th2) * control_dist
-        p2y = y2 - math.sin(th2) * control_dist
-
-        # TODO replace this with arc length
-        total_time = control_dist / linear_speed
-
-        bezier_curve = BezierCurve(x1,y1, p1x,p1y, p2x,p2y, x2,y2, total_time)
-
-        bezier_curve.plot()
-
-        return (bezier_curve, total_time)
-
-
 
 
 
@@ -588,7 +449,7 @@ class Lab2:
         print(f"Wave Points: {wave_point_list}")
 
         # self.run_wave_point_list_pid(wave_point_list, 0.1)
-        self.run_wave_point_list_goto(wave_point_list, LINEAR_MAX, ANGULAR_MAX)
+        self.run_wave_point_list_goto(wave_point_list[1:], LINEAR_MAX, ANGULAR_MAX)
 
 
 
