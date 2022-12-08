@@ -1,12 +1,23 @@
 
 <launch>
-
+<arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
+  <arg name="x_pos" default="-2.2"/>
+  <arg name="y_pos" default="0.4"/>
+  <arg name="z_pos" default="0.05"/>
+  <arg name="maze" default="final_maze"/>
+  
   <!-- Map Server Arguments -->
   <!-- <arg name="map_file" default="$(env TURTLEBOT_GAZEBO_MAP_FILE)"/> -->
 
   <arg name="map_file" default="$(find Lab4)/maps/map.yaml"/>
   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
-  
+
+  <node name="tf" pkg="tf" type="static_transform_publisher"  args ="0 0 0 0 0 0 /map /odom 100"/>
+
+  <param name="robot_description" command="$(find xacro)/xacro $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro" />
+
+  <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-urdf -model turtlebot3_burger -x $(arg x_pos) -y $(arg y_pos) -z $(arg z_pos) -param robot_description" />
+
   <!--Rviz Node-->
   <node pkg="rviz" type="rviz" name="rviz" required="true" args="-d $(find Lab4)/rviz/rbe3002_lab4.rviz"/>
   
@@ -64,4 +75,8 @@
 
   <!-- AMCL -->
   <node pkg="amcl" type="amcl" name="amcl"></node>
+
+  <!-- Turtlebot3  -->
+  <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch" />
+
   </launch>
