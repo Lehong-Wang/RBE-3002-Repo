@@ -40,7 +40,7 @@ class PathPlanner:
         self.path_pub = rospy.Publisher('/path_planner/path', Path, queue_size=10)
 
 
-        self.cspace_value = 3
+        self.cspace_value = 4
 
 
         ## Sleep to allow roscore to do some housekeeping
