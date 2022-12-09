@@ -1,5 +1,8 @@
+#!/usr/bin/env python3
+
 import math
 import warnings
+import copy
 
 import rospy
 from nav_msgs.msg import Odometry
@@ -9,12 +12,16 @@ from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 
 
+from path_planner import *
 
 
 class Mapping:
 
     def __init__(self):
         rospy.init_node("lab4_mapping_node")
+
+
+        self.sub_cspace_map = rospy.Subscriber('/path_planner/cspace_map', OccupancyGrid, PathPlanner.print_map)
 
 
 
@@ -44,9 +51,71 @@ class Mapping:
 
 
 
+    def calc_frontior(self, mapdata):
+        width = mapdata.info.width
+        height = mapdata.info.height
+        map_array = mapdata.data
 
 
 
+    @staticmethod
+    def find_initial_frontior(mapdata):
+
+        # list of (x,y) for frontier
+        frontier_list = []
+        for i,value in enumerate(mapdata.data):
+            if value != 0:
+                continue
+            x,y = PathPlanner.index_to_grid(mapdata,i) 
+            if Mapping.neighbor_have_unknown(mapdata, x, y):
+                frontier_list.append((x,y))
+
+        print(f"Initial Frontier List: {frontier_list}")
+        return frontier_list
+
+
+    @staticmethod
+    def neighbor_have_unknown(mapdata, x, y):
+
+        neib_coords = PathPlanner.neighbors_of_8(mapdata, x, y)
+
+        for coord in neib_coords:
+            value = PathPlanner.grid_to_index(mapdata, coord[0], coord[1])
+            if value == -1:
+                return True
+
+        return False
+
+
+    @staticmethod
+    def inflate(mapdata, frontier_list):
+        for coord in frontier_list:
+            pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def run(self):
+
+        rospy.spin()
+
+
+
+if __name__ == '__main__':
+    Mapping().run()
 
 
 

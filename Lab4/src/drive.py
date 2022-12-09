@@ -5,7 +5,6 @@ from math import sin, cos
 import warnings
 import numpy as np
 
-from bezier import *
 import rospy
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion

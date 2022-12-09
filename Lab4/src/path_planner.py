@@ -30,6 +30,7 @@ class PathPlanner:
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
         self.cspace_pub = rospy.Publisher('/path_planner/cspace', GridCells, queue_size=10)
+        self.cspace_map_pub = rospy.Publisher('/path_planner/cspace_map', OccupancyGrid, queue_size=10)
         
         ## Create publishers for A* (expanded cells, frontier, ...)
         ## Choose the topic names, the message type is GridCells
@@ -60,7 +61,7 @@ class PathPlanner:
         ### REQUIRED CREDIT
         within_bound = x < mapdata.info.width and \
                         y < mapdata.info.height and \
-                            min(x,y) >= 0      
+                            min(x,y) >= 0
         if not within_bound:
             warn_str = f"Error: grid out of bound {(x,y)}"
             warnings.warn(warn_str)
@@ -338,6 +339,7 @@ class PathPlanner:
         grid_cell.cells = point_list
 
         self.cspace_pub.publish(grid_cell)
+        self.cspace_map_pub.publish(cspace)
         ## Return the C-space
         return cspace
 
@@ -599,6 +601,10 @@ class PathPlanner:
                     print("#", end=" ")
                 elif value == 0:
                     print(" ", end=" ")
+                elif value == -1:
+                    print(" ", end=" ")
+                elif value == 10:
+                    print("-", end=" ")
                 else:
                     print("?", end=" ")
             print("")
