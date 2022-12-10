@@ -27,6 +27,8 @@ class PathPlanner:
         ## type GetPlan and calls self.plan_path() when a message is received
         self.plan_path_service = rospy.Service('plan_path', GetPlan, self.plan_path)
         
+        # self.cspace_map_service = rospy.Service('cspace_map', OccupancyGrid, )
+
         ## Create a publisher for the C-space (the enlarged occupancy grid)
         ## The topic is "/path_planner/cspace", the message type is GridCells
         self.cspace_pub = rospy.Publisher('/path_planner/cspace', GridCells, queue_size=10)
@@ -174,10 +176,11 @@ class PathPlanner:
         within_bound = x < mapdata.info.width and \
                         y < mapdata.info.height and \
                             min(x,y) >= 0
-
+        if not within_bound:
+            return False
         index = PathPlanner.grid_to_index(mapdata, x, y)
-        is_free = not mapdata.data[index]
-        return within_bound & is_free
+        return not mapdata.data[index]
+
 
 
     @staticmethod
@@ -602,9 +605,11 @@ class PathPlanner:
                 elif value == 0:
                     print(" ", end=" ")
                 elif value == -1:
-                    print(" ", end=" ")
+                    print("+", end=" ")
                 elif value == 10:
                     print("-", end=" ")
+                elif value == 5:
+                    print("@", end=" ")
                 else:
                     print("?", end=" ")
             print("")
@@ -638,7 +643,7 @@ class PathPlanner:
     @staticmethod
     def modify_map(mapdata, x, y, value):
         # print(f"@ modify_map {(x,y,value)}")
-        map_array = list(mapdata.data)
+        map_array = list(copy.deepcopy(mapdata.data))
         map_array[PathPlanner.grid_to_index(mapdata, x, y)] = value
 
         new_mapdata = OccupancyGrid()
@@ -651,9 +656,10 @@ class PathPlanner:
     @staticmethod
     def get_test_map():
         mapdata = OccupancyGrid()
-        mapdata.info.width = 4
-        mapdata.info.height = 4
-        mapdata.data = (0,0,0,0, 0,0,0,0, 100,0,0,0, 0,0,100,100)
+        mapdata.info.width = 5
+        mapdata.info.height = 5
+        # mapdata.data = (-1,-1,0,0,0, 0,0,0,-1,0, 0,100,0,0,0, 0,0,0,0,0, 0,0,0,100,100)
+        mapdata.data = (-1,100,0,0,0, 0,100,0,0,0, 0,0,0,0,0, 0,0,0,100,0, 100,0,0,100,-1)
 
         return mapdata
 
