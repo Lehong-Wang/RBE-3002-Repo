@@ -38,12 +38,6 @@ class Lab2:
 
 
 
-
-
-
-
-
-
         self.msg_cmd_vel = Twist() # Make a new Twist message
 
         self.rate = rospy.Rate(50) # 10hz
@@ -123,8 +117,6 @@ class Lab2:
 
 
 ################################ trajectory control ################################
-
-
 
 
 

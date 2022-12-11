@@ -24,11 +24,12 @@ class Mapping:
         rospy.init_node("lab4_mapping_node")
 
 
-        # self.sub_cspace_map = rospy.Subscriber('/path_planner/cspace_map', OccupancyGrid, PathPlanner.print_map)
-        # self.sub_cspace_map = rospy.Subscriber('/path_planner/cspace_map', OccupancyGrid, PathPlanner.print_map)
+        # auto update pose
+        self.sub_odom = rospy.Subscriber('/odom', Odometry, self.update_odometry)
+
 
         # self.frontier_goal_service = rospy.Service('frontier_goal', OccupancyGrid, self.get_frontier_goal)
-        self.frontier_goal_task_sub = rospy.Subscriber('/task_control/cspace_map', OccupancyGrid, self.get_frontier_goal)
+        self.frontier_goal_task_sub = rospy.Subscriber('/task_control/cspace_map', OccupancyGrid, self.calc_frontier)
         # publish the final result for frontier calculation
         self.frontier_goal_pub = rospy.Publisher('/path_planner/frontier_goal', PoseStamped, queue_size=10)
 
@@ -36,45 +37,15 @@ class Mapping:
         # reuse astar frontier
         self.frontier_graph_pub = rospy.Publisher('/path_planner/frontier', GridCells, queue_size=10)
 
+        # Robot pos
+        self.px = 0
+        self.py = 0
+        self.pth = 0
 
 
 
 
 
-
-    def get_frontier_goal(self, msg):
-        mapdata = msg
-        self.calc_frontier(mapdata)
-
-
-
-
-
-
-
-
-    # TESTED
-    @staticmethod
-    def request_map():
-        """
-        Requests the map from the map server.
-        :return [OccupancyGrid] The grid if the service call was successful,
-                                None in case of error.
-        """
-        ### REQUIRED CREDIT
-        rospy.loginfo("Requesting the map")
-        try:
-            rospy.wait_for_service('dynamic_map') # Block until service is available
-            grid = rospy.ServiceProxy('dynamic_map', GetMap)
-        except Exception:
-            print(f"Error when requesting map\n{Exception}")
-            return None
-        return grid().map
-
-
-    @staticmethod
-    def request_cspace_map(msg):
-        return msg
 
 
 
@@ -219,6 +190,7 @@ class Mapping:
 
 
 
+    # def choose_frontier(self, )
 
 
 
@@ -239,7 +211,7 @@ class Mapping:
 
 
 
-
+    # region Utils
 
 
     #################################### utils ####################################
@@ -297,6 +269,47 @@ class Mapping:
             print_map = PathPlanner.modify_map(print_map, coord[0], coord[1], 5)
 
         PathPlanner.print_map(print_map)
+
+
+
+
+    def update_odometry(self, msg):
+        """
+        Updates the current pose of the robot.
+        This method is a callback bound to a Subscriber.
+        :param msg [Odometry] The current odometry information.
+        """
+        self.px = msg.pose.pose.position.x
+        self.py = msg.pose.pose.position.y
+        quat_orig = msg.pose.pose.orientation
+        quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
+        ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
+        self.pth = yaw
+
+
+
+
+    # TESTED
+    @staticmethod
+    def request_map():
+        """
+        Requests the map from the map server.
+        :return [OccupancyGrid] The grid if the service call was successful,
+                                None in case of error.
+        """
+        ### REQUIRED CREDIT
+        rospy.loginfo("Requesting the map")
+        try:
+            rospy.wait_for_service('dynamic_map') # Block until service is available
+            grid = rospy.ServiceProxy('dynamic_map', GetMap)
+        except Exception:
+            print(f"Error when requesting map\n{Exception}")
+            return None
+        return grid().map
+
+
+    # endregion
+
 
 
 

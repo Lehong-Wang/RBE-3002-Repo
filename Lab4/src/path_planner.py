@@ -11,6 +11,11 @@ from geometry_msgs.msg import Point, Pose, PoseStamped
 import priority_queue
 
 
+
+CSPACE_LEN = 0.12
+RESOLUTION = 0.03
+
+
 class PathPlanner:
 
 
@@ -54,7 +59,7 @@ class PathPlanner:
 
 
 
-        self.cspace_value = 4
+        self.cspace_value = math.ceil(CSPACE_LEN / RESOLUTION)
 
 
         ## Sleep to allow roscore to do some housekeeping
@@ -355,7 +360,7 @@ class PathPlanner:
         self.cspace_pub.publish(grid_cell)
         # self.cspace_map_pub.publish(cspace)
         # give cspace to frontier calc
-        self.frontier_goal_task_pub.publish(cspace)
+        # self.frontier_goal_task_pub.publish(cspace)
         ## Return the C-space
         return cspace
 
@@ -602,6 +607,18 @@ class PathPlanner:
 
 
 
+
+    def run_phase_1(self):
+        """Start phase 1"""
+        mapdata = PathPlanner.request_map()
+        if mapdata is None:
+            warnings.warn("Empty Map")
+            return
+        cspace_map = self.calc_cspace(mapdata, self.cspace_value)
+        self.frontier_goal_task_pub.publish(cspace_map)
+
+
+
 ###################################### utils ##################################
 
     @staticmethod
@@ -703,6 +720,10 @@ class PathPlanner:
         """
         Runs the node until Ctrl-C is pressed.
         """
+
+        # mapdata = PathPlanner.request_map()
+        # self.calc_cspace(mapdata, self.cspace_value)
+        self.run_phase_1()
 
         rospy.spin()
 
