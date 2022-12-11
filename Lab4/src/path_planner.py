@@ -43,6 +43,17 @@ class PathPlanner:
         self.path_pub = rospy.Publisher('/path_planner/path', Path, queue_size=10)
 
 
+
+        # send a cspace OccupancyGrid
+        # request for calculating frontier_goal as one point
+        self.frontier_goal_task_pub = rospy.Publisher('/task_control/cspace_map', OccupancyGrid, queue_size=10)
+
+
+
+
+
+
+
         self.cspace_value = 4
 
 
@@ -342,7 +353,9 @@ class PathPlanner:
         grid_cell.cells = point_list
 
         self.cspace_pub.publish(grid_cell)
-        self.cspace_map_pub.publish(cspace)
+        # self.cspace_map_pub.publish(cspace)
+        # give cspace to frontier calc
+        self.frontier_goal_task_pub.publish(cspace)
         ## Return the C-space
         return cspace
 
@@ -435,7 +448,7 @@ class PathPlanner:
 
                 path_msg = self.path_to_message(mapdata, path_list)
 
-                self.path_pub.publish(path_msg)
+                # self.path_pub.publish(path_msg)
                 # PathPlanner.print_num_value(mapdata, g_list)
                 rospy.sleep(0.5)
                 return path_list
@@ -583,7 +596,9 @@ class PathPlanner:
         ## Optimize waypoints
         waypoints = PathPlanner.optimize_path(path)
         ## Return a Path message
-        return self.path_to_message(mapdata, waypoints)
+        path_msg = self.path_to_message(mapdata, waypoints)
+        self.path_pub.publish(path_msg)
+        return path_msg
 
 
 

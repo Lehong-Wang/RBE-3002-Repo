@@ -8,6 +8,7 @@ import rospy
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
 from geometry_msgs.msg import Twist, Point, Pose, PoseStamped, PoseWithCovarianceStamped
+from std_msgs.msg import Bool
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 
@@ -26,11 +27,13 @@ class Mapping:
         # self.sub_cspace_map = rospy.Subscriber('/path_planner/cspace_map', OccupancyGrid, PathPlanner.print_map)
         # self.sub_cspace_map = rospy.Subscriber('/path_planner/cspace_map', OccupancyGrid, PathPlanner.print_map)
 
-        self.frontier_goal_service = rospy.Service('frontier_goal', OccupancyGrid, self.get_frontier_goal)
+        # self.frontier_goal_service = rospy.Service('frontier_goal', OccupancyGrid, self.get_frontier_goal)
+        self.frontier_goal_task_sub = rospy.Subscriber('/task_control/cspace_map', OccupancyGrid, self.get_frontier_goal)
         # publish the final result for frontier calculation
-        self.frontier_goal_pub = rospy.Publisher('/path_planner/frontier_goal', Point, queue_size=10)
+        self.frontier_goal_pub = rospy.Publisher('/path_planner/frontier_goal', PoseStamped, queue_size=10)
 
         # for graphing frontier in rviz
+        # reuse astar frontier
         self.frontier_graph_pub = rospy.Publisher('/path_planner/frontier', GridCells, queue_size=10)
 
 
@@ -40,8 +43,8 @@ class Mapping:
 
 
     def get_frontier_goal(self, msg):
-        pass
-
+        mapdata = msg
+        self.calc_frontier(mapdata)
 
 
 
@@ -307,13 +310,13 @@ class Mapping:
         # PathPlanner.print_map(mapdata)
         # print(f"Map: {mapdata}")
 
-        mapdata = Mapping.request_map()
-        frontier_list = self.calc_frontier(mapdata)
+        # mapdata = Mapping.request_map()
+        # frontier_list = self.calc_frontier(mapdata)
 
-        Mapping.group_frontier(mapdata, frontier_list)
+        # Mapping.group_frontier(mapdata, frontier_list)
 
 
-        # rospy.spin()
+        rospy.spin()
 
 
 

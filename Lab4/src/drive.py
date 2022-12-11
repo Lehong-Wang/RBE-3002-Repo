@@ -29,21 +29,20 @@ class Lab2:
         ### Initialize node, name it 'lab2'
         rospy.init_node('lab2_drive_node')
 
-        ### Tell ROS that this node publishes Twist messages on the '/cmd_vel' topic
         self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
-
-        ### Tell ROS that this node subscribes to Odometry messages on the '/odom' topic
-        ### When a message is received, call self.update_odometry
+        # auto update pose
         self.sub_odom = rospy.Subscriber('/odom', Odometry, self.update_odometry)
 
-        ### Tell ROS that this node subscribes to PoseStamped messages on the '/move_base_simple/goal' topic
-        ### When a message is received, call self.go_to
-        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.pos_to_robot_frame_callback)
-        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.run_bezier_traj)
-        # self.sub_goal = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.go_to)
-
         self.goal_pose_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.call_astar)
-        # self.goal_pose_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.pid_callback)
+
+
+
+
+
+
+
+
+
 
         self.msg_cmd_vel = Twist() # Make a new Twist message
 
