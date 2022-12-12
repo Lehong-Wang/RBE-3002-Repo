@@ -17,6 +17,7 @@ from path_planner import *
 
 
 DEBUG = True
+MIN_FRONTIER_SIZE = 3
 
 class Mapping:
 
@@ -31,11 +32,13 @@ class Mapping:
         # self.frontier_goal_service = rospy.Service('frontier_goal', OccupancyGrid, self.get_frontier_goal)
         self.frontier_goal_task_sub = rospy.Subscriber('/task_control/cspace_map', OccupancyGrid, self.calc_frontier)
         # publish the final result for frontier calculation
-        self.frontier_goal_pub = rospy.Publisher('/path_planner/frontier_goal', PoseStamped, queue_size=10)
+        # self.frontier_goal_pub = rospy.Publisher('/mapping/frontier_goal', PoseStamped, queue_size=10)
+        self.frontier_goal_pub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size=10)
 
         # for graphing frontier in rviz
-        # reuse astar frontier
-        self.frontier_graph_pub = rospy.Publisher('/path_planner/frontier', GridCells, queue_size=10)
+        self.frontier_graph_pub = rospy.Publisher('/mapping/frontier_graph', GridCells, queue_size=10)
+        self.frontier_goal_graph_pub = rospy.Publisher('/mapping/frontier_goal_graph', GridCells, queue_size=10)
+
 
         # Robot pos
         self.px = 0
@@ -68,7 +71,35 @@ class Mapping:
 
         PathPlanner.publish_grid_cell(mapdata, self.frontier_graph_pub, eroded_frontier_list)
 
-        return eroded_frontier_list
+        frontier_group_list = Mapping.group_frontier(mapdata, eroded_frontier_list)
+
+        frontier_goal_found = False
+        frontier_goal = None
+        while not frontier_goal_found:
+            chosen_frontier_group = self.choose_frontier(frontier_group_list)
+            # run out of frontiers
+            if chosen_frontier_group is None:
+                return
+            print(f"\nChoosen Frontier Group: {chosen_frontier_group}")
+            frontier_goal = self.get_group_center_point(chosen_frontier_group)
+            print(f"\nFrontier Goal: {frontier_goal}")
+            # if frontier_goal is walkable
+            frontier_goal_found = self.validate_frontier_walkable(frontier_goal)
+            frontier_group_list.remove(chosen_frontier_group)
+
+
+        PathPlanner.publish_grid_cell(mapdata, self.frontier_goal_graph_pub, [frontier_goal])
+
+        if frontier_goal is None:
+            rospy.loginfo("Error: frontier goal is None")
+            return
+
+        frontier_goal_world = PathPlanner.grid_to_world(mapdata, frontier_goal[0], frontier_goal[1])
+        goal_msg = PoseStamped()
+        goal_msg.pose.position.x = frontier_goal_world.x
+        goal_msg.pose.position.y = frontier_goal_world.y
+        self.frontier_goal_pub.publish(goal_msg)
+        return frontier_goal
 
 
 
@@ -190,18 +221,77 @@ class Mapping:
 
 
 
-    # def choose_frontier(self, )
+    def choose_frontier(self, frontier_group_list):
+        group_score_list = []
+        for frontier_group in frontier_group_list:
+            group_size = len(frontier_group)
+            if group_size <= MIN_FRONTIER_SIZE:
+                group_score_list.append(-1)
+                continue
+
+            x_pos_sum, y_pos_sum = 0,0
+            for coord in frontier_group:
+                x_pos_sum += coord[0]
+                y_pos_sum += coord[1]
+            group_pos = (x_pos_sum/group_size, y_pos_sum/group_size)
+
+            group_dist = math.sqrt((self.px-group_pos[0])**2 + (self.py-group_pos[1])**2)
+            # shorter distance have higher score
+            group_score_list.append(1/group_dist)
+
+        max_score = max(group_score_list)
+        if max_score == -1:
+            rospy.loginfo("No Frontier Left")
+            return None
+        chosen_group_index = group_score_list.index(max_score)
+        chosen_group = frontier_group_list[chosen_group_index]
+        return chosen_group
 
 
 
 
 
 
+    def get_group_center_point(self, frontier_group):
+        group_size = len(frontier_group)
+        x_pos_sum, y_pos_sum = 0,0
+        for coord in frontier_group:
+            x_pos_sum += coord[0]
+            y_pos_sum += coord[1]
+        group_cof = (x_pos_sum/group_size, y_pos_sum/group_size)
+
+        min_dist = float('inf')
+        min_coord = None
+        for coord in frontier_group:
+            dist = math.sqrt((group_cof[0]-coord[0])**2 + (group_cof[1]-coord[1])**2)
+            if dist < min_dist:
+                min_dist = dist
+                min_coord = coord
+
+        return min_coord
 
 
+    def validate_frontier_walkable(self, frontier_goal):
 
+        path_plan = rospy.ServiceProxy('plan_path', GetPlan)
+        initial_pose = PoseStamped()
+        final_pose = PoseStamped()
 
+        initial_pose.pose.position.x = self.px
+        initial_pose.pose.position.y = self.py
+        initial_pose.pose.orientation.w = self.pth
 
+        final_pose.pose.position.x = frontier_goal[0]
+        final_pose.pose.position.y = frontier_goal[1]
+
+        tolerance = 0.1
+
+        # send stuff to service
+        # received return from service
+        send = path_plan(initial_pose, final_pose, tolerance)
+        rospy.loginfo(f"Calculated A star path for validating point {frontier_goal}")
+
+        return not (send is None)
 
 
 

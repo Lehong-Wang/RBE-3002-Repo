@@ -11,14 +11,15 @@ from tf.transformations import euler_from_quaternion
 from geometry_msgs.msg import Twist, Point, Pose, PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
+from std_msgs.msg import Empty
 
 
 
 LINEAR_MAX = 0.05
 ANGULAR_MAX = 0.15
 
-# LINEAR_MAX = 0.2
-# ANGULAR_MAX = 2
+LINEAR_MAX = 0.2
+ANGULAR_MAX = 0.5
 
 class Lab2:
 
@@ -36,6 +37,7 @@ class Lab2:
         self.goal_pose_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.call_astar)
 
 
+        self.run_phase_1_pub = rospy.Publisher('/task_control/run_phase_1', Empty, queue_size=10)
 
 
         self.msg_cmd_vel = Twist() # Make a new Twist message
@@ -414,13 +416,17 @@ class Lab2:
         initial_pose.pose.orientation.w = self.pth
         
         tolerance = 0.1
-        
+        # send stuff to service
+        # received return from service
         send = path_plan(initial_pose, msg, tolerance)
         rospy.loginfo("sent path from rviz")
 
         # print(send)
         self.drive_along_path(send)
-    
+
+
+        self.run_phase_1_pub.publish(Empty())
+
 
 
     def drive_along_path(self, msg):

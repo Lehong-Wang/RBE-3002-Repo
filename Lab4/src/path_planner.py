@@ -7,6 +7,7 @@ import rospy
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
+from std_msgs.msg import Empty
 
 import priority_queue
 
@@ -48,6 +49,7 @@ class PathPlanner:
         self.path_pub = rospy.Publisher('/path_planner/path', Path, queue_size=10)
 
 
+        self.run_phase_1_sub = rospy.Subscriber('/task_control/run_phase_1', Empty, self.run_phase_1)
 
         # send a cspace OccupancyGrid
         # request for calculating frontier_goal as one point
@@ -361,6 +363,7 @@ class PathPlanner:
         # self.cspace_map_pub.publish(cspace)
         # give cspace to frontier calc
         # self.frontier_goal_task_pub.publish(cspace)
+
         ## Return the C-space
         return cspace
 
@@ -608,7 +611,7 @@ class PathPlanner:
 
 
 
-    def run_phase_1(self):
+    def run_phase_1(self, msg=None):
         """Start phase 1"""
         mapdata = PathPlanner.request_map()
         if mapdata is None:
