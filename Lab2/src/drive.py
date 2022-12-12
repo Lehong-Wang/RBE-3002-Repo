@@ -12,7 +12,7 @@ from tf.transformations import euler_from_quaternion
 from geometry_msgs.msg import Twist, Point, Pose, PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
-
+import tf
 
 
 LINEAR_MAX = 0.05
@@ -52,7 +52,8 @@ class Lab2:
         self.check_pos_rate = rospy.Rate(20)
         self.check_pos_tolerance = 0.03
 
-
+        self.listener = tf.TransformListener()
+        
         # Robot pos
         self.px = 0
         self.py = 0
@@ -119,6 +120,19 @@ class Lab2:
         quat_orig = msg.pose.pose.orientation
         quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
         ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
+        self.pth = yaw
+        """
+        trans = [0,0]
+        rot = [0,0,0,0]
+        try:
+            (trans,rot) = self.listener.lookupTransform('/map','/base_footprint',rospy.Time(0)) 
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            print("HEY I DIDN'T WORK")
+        self.px = trans[0]
+        self.py = trans[1]
+ 
+        quat_list = [rot[0], rot[1], rot[2], rot[3]]
+        (roll, pitch, yaw) = euler_from_quaternion(quat_list)
         self.pth = yaw
         # print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
 
