@@ -4,3 +4,5 @@ robot_setup_tf/
 turtlebot3_simulations/
 
 **/.DS_Store
+
+**/__pycache__/**

@@ -16,6 +16,18 @@ from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from path_planner import *
 
 
+
+# TODO
+# go partially to goal
+# better way to control the cycle
+# choose nearest frontier may have problem, and validate frontier
+# prevent crash?
+# rewrite a star
+# better control in general
+
+
+
+
 DEBUG = True
 MIN_FRONTIER_SIZE = 3
 
