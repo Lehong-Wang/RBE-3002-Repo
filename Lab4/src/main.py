@@ -22,7 +22,7 @@ robot_start_timer = None
 def check_robot(callback_func):
     def wrapper():
         if robot is None:
-            raise ValueError("f{callback_func.func_name}: Robot not initialized when calling \
+            raise ValueError(f"{callback_func.func_name}: Robot not initialized when calling \
                              back to {callback_func.func_name}")
         callback_func()
 
