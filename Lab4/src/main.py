@@ -13,31 +13,117 @@ from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from constants import *
 from utils import *
 
+
+
 # Global instance
 robot = None
 robot_start_timer = None
 
-
-# robot instance checker decorator
-def check_robot(callback_func):
-    def wrapper():
-        if robot is None:
-            raise ValueError(f"{callback_func.func_name}: Robot not initialized when calling \
-                             back to {callback_func.func_name}")
-        callback_func()
-
-    return wrapper()
-
-
 # LINEAR_MAX = 0.2
 # ANGULAR_MAX = 2
-# endregion
 
 class Robot:
     """
     Logical robot class to control logical robot operations
     """
     pose = RobotPose(0, 0, 0)
+
+
+    # region Callbacks
+    class Callbacks:
+
+        def __init__(self, robot):
+            self.robot = robot
+
+        # robot instance checker decorator
+        def check_robot(self, func_name):
+            if self.robot is None:
+                raise ValueError(f"{func_name}: Robot not initialized when calling back to {func_name}")
+
+            return True
+
+        
+        def update_odometry(self, msg):
+            """
+            Updates the current pose of the robot.
+            This method is a callback bound to a Subscriber.
+            :param msg [Odometry] The current odometry information.
+            """
+
+            self.check_robot("update_odometry")
+
+            new_x = msg.pose.pose.position.x
+            new_y = msg.pose.pose.position.y
+            quat_orig = msg.pose.pose.orientation
+            quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
+            (roll, pitch, yaw) = euler_from_quaternion(quat_list)
+            new_theta = yaw
+
+            
+            self.robot.set_robot_pose(new_x, new_y, new_theta)
+            # print(f"update_odometry {(round(robot.get_x(),3), round(robot.get_y(),3), \
+            #   round(robot.get_theta(),3))}")
+
+        def pos_to_robot_frame_callback(self, msg):
+            """
+
+            :param msg:
+            :return:
+            """
+
+            self.check_robot("pos_to_robot_frame_callback")
+
+            x2 = msg.pose.position.x
+            y2 = msg.pose.position.y
+            quat_orig = msg.pose.orientation
+            quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
+            (roll, pitch, yaw) = euler_from_quaternion(quat_list)
+            th2 = yaw
+
+            robot_pose = self.robot.get_robot_pose()
+            target_pos = Position(x2, y2)
+
+            Utils.world_to_robot_frame(robot_pose, target_pos, th2)
+
+        def call_astar(self, msg):
+            """
+            Creates the path using Astar from Rviz
+            This method is a callback bound to a Subscriber.
+            :param msg [PoseStamped] The goal pose.
+            """
+            ## Create service proxy
+
+            self.check_robot("call_astar")
+
+            path_plan = rospy.ServiceProxy('plan_path', GetPlan)
+            initial_pose = PoseStamped()
+
+            # Save the initial pose
+            initial_pose.pose.position.x = self.robot.get_x()
+            initial_pose.pose.position.y = self.robot.get_y()
+            initial_pose.pose.orientation.w = self.robot.get_theta()
+
+            path = path_plan(initial_pose, msg, A_STAR_PATH_TOLERANCE)
+            rospy.loginfo("sent path from rviz")
+
+            # print(send)
+            self.robot.drive_path_msg(path)
+
+        def pid_callback(self, msg):
+            # Store the message position
+
+            self.check_robot("pid_callback")
+
+            desired_px = msg.pose.position.x
+            desired_py = msg.pose.position.y
+
+            print(f"PoseStamped {(round(desired_px, 3), round(desired_py, 3))}")
+            print(f"Current pose {(round(self.robot.get_x(), 3), round(self.robot.get_y(), 3), round(self.robot.get_theta(), 3))}")
+
+            self.robot.execute_wave_point_list_pid([(desired_px, desired_py)], LINEAR_MAX)
+
+
+# endregion
 
     # region Initialization
     def __init__(self):
@@ -58,10 +144,10 @@ class Robot:
         self.pub_wheel_delay =rospy.Rate(DEFAULT_PUB_RATE)  # 10hz
 
         # Odometries
-        self.sub_odom = rospy.Subscriber('/odom', Odometry, Callbacks.update_odometry)
+        self.sub_odom = rospy.Subscriber('/odom', Odometry, self.Callbacks.update_odometry)
 
         # Pose
-        self.sub_goal_pose = rospy.Subscriber('/move_base_simple/goal', PoseStamped, Callbacks.call_astar)
+        self.sub_goal_pose = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.Callbacks.call_astar)
 
         # Timer object, get second with .secs , nanoseconds with .nsecs
         robot_start_timer = rospy.get_rostime()
@@ -381,96 +467,17 @@ class Robot:
     # endregion
 
 
-# region Callbacks
-class Callbacks:
 
-    def __init__(self):
-        raise NotImplementedError("Callback class should never be instantiated")
-
-    @staticmethod
-    @check_robot
-    def update_odometry(msg):
-        """
-        Updates the current pose of the robot.
-        This method is a callback bound to a Subscriber.
-        :param msg [Odometry] The current odometry information.
-        """
-
-        new_x = msg.pose.pose.position.x
-        new_y = msg.pose.pose.position.y
-        quat_orig = msg.pose.pose.orientation
-        quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
-        (roll, pitch, yaw) = euler_from_quaternion(quat_list)
-        new_theta = yaw
-
-        robot.set_robot_pose(new_x, new_y, new_theta)
-        # print(f"update_odometry {(round(robot.get_x(),3), round(robot.get_y(),3), \
-        #   round(robot.get_theta(),3))}")
-
-    # TODO: Since you called it a callback I put it here.
-    #  However, I think it should go under utils probably
-    @staticmethod
-    @check_robot
-    def pos_to_robot_frame_callback(msg):
-        """
-
-        :param msg:
-        :return:
-        """
-
-        x2 = msg.pose.position.x
-        y2 = msg.pose.position.y
-        quat_orig = msg.pose.orientation
-        quat_list = [quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w]
-        (roll, pitch, yaw) = euler_from_quaternion(quat_list)
-        th2 = yaw
-
-        robot_pose = robot.get_robot_pose()
-        target_pos = Position(x2, y2)
-
-        Utils.world_to_robot_frame(robot_pose, target_pos, th2)
-
-    @staticmethod
-    @check_robot
-    def call_astar(self, msg):
-        """
-        Creates the path using Astar from Rviz
-        This method is a callback bound to a Subscriber.
-        :param msg [PoseStamped] The goal pose.
-        """
-        ## Create service proxy
-
-        path_plan = rospy.ServiceProxy('plan_path', GetPlan)
-        initial_pose = PoseStamped()
-
-        # Save the initial pose
-        initial_pose.pose.position.x = self.get_x()
-        initial_pose.pose.position.y = self.get_y()
-        initial_pose.pose.orientation.w = self.get_theta()
-
-        path = path_plan(initial_pose, msg, A_STAR_PATH_TOLERANCE)
-        rospy.loginfo("sent path from rviz")
-
-        # print(send)
-        robot.drive_path_msg(path)
-
-    @staticmethod
-    @check_robot
-    def pid_callback(msg):
-        # Store the message position
-
-        desired_px = msg.pose.position.x
-        desired_py = msg.pose.position.y
-
-        print(f"PoseStamped {(round(desired_px, 3), round(desired_py, 3))}")
-        print(f"Current pose {(round(robot.get_x(), 3), round(robot.get_y(), 3), round(robot.get_theta(), 3))}")
-
-        robot.execute_wave_point_list_pid([(desired_px, desired_py)], LINEAR_MAX)
-
-
-# endregion
 
 
 if __name__ == '__main__':
+    # Global instance
+    # global robot
+    # robot = None
+    # global robot_start_timer
+    # robot_start_timer = None
+    # global robot
+    # print(Callbacks.update_odometry)
+    # print(Callbacks.pid_callback)
     robot = Robot()
     robot.run()

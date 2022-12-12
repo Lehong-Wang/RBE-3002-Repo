@@ -4,5 +4,5 @@
   <!-- roslaunch turtlebot3_gazebo turtlebot3_gazebo_rviz.launch -->
   <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_gazebo_rviz.launch"/>
   <!-- rosrun Lab2 lab2.py -->
-  <node pkg="Lab2" type="drive.py" name="lab2_drive_node" output="screen" />
+  <!-- <node pkg="Lab2" type="drive.py" name="lab2_drive_node" output="screen" /> -->
 </launch>
