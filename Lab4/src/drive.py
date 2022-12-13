@@ -40,6 +40,7 @@ class Lab2:
 
         self.run_phase_1_pub = rospy.Publisher('/task_control/run_phase_1', Empty, queue_size=10)
 
+        self.received_path_sub = rospy.Subscriber('/task_control/path', Path, self.drive_along_path)
 
         self.msg_cmd_vel = Twist() # Make a new Twist message
 
@@ -437,12 +438,13 @@ class Lab2:
         
         tolerance = 0.1
         # send stuff to service
-        # received return from service
+        # received GatPlan msg from service
         send = path_plan(initial_pose, msg, tolerance)
         rospy.loginfo("Got Path from Path_Plan, calling drive_along_path")
 
         # print(send)
-        self.drive_along_path(send)
+        self.drive_along_path(send.plan)
+        # print(f"\nReceived From Service: \n{send}")
         rospy.loginfo("Drive Finished Driving a path")
 
         self.run_phase_1_pub.publish(Empty())
@@ -457,17 +459,21 @@ class Lab2:
         walk along wave points
         """
         wave_point_list = []
-        pose_msg_list = msg.plan.poses
+        pose_msg_list = msg.poses
         for pose_msg in pose_msg_list:
             x = pose_msg.pose.position.x
             y = pose_msg.pose.position.y
             wave_point_list.append((x,y))
 
+        rospy.loginfo("Received Path msg form /task_control/path, driving along path")
         print(f"Wave Points: {wave_point_list}")
 
         # self.run_wave_point_list_pid(wave_point_list, 0.1)
         self.run_wave_point_list_goto(wave_point_list[1:], LINEAR_MAX, ANGULAR_MAX)
+        rospy.loginfo("Drive Finished Driving a path")
 
+        self.run_phase_1_pub.publish(Empty())
+        rospy.loginfo("Send run_phase_1 to Path_Plan")
 
 
 
