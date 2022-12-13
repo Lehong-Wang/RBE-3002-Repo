@@ -97,7 +97,9 @@ class AMCL_Test:
         Runs the node until Ctrl-C is pressed.
         """
         rospy.loginfo("Global Localization Service Call")
-        rosservice.call_service('/global_localization', Empty)
+        rospy.wait_for_service('global_localization')
+        rospy.ServiceProxy('global_localization', Empty)
+        #rosservice.call_service('/global_localization', Empty)
         print("AMCL Sleep")
         rospy.sleep(1)
         rospy.spin()
