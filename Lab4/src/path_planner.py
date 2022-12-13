@@ -13,8 +13,8 @@ import priority_queue
 
 
 
-CSPACE_LEN = 0.12
-RESOLUTION = 0.03
+CSPACE_LEN = 0.1
+RESOLUTION = 0.02
 
 
 class PathPlanner:
