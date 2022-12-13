@@ -1,22 +1,28 @@
 
 <launch>
-<arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
+<!-- <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
   <arg name="x_pos" default="0.0"/>
   <arg name="y_pos" default="0.0"/>
   <arg name="z_pos" default="0.0"/>
-  <arg name="maze" default="final_maze"/>
+  <arg name="maze" default="final_maze"/> -->
+    
+  <!-- Lab4 -->
+  <node pkg="Lab4" type="amcl.py" name="amcl_test" output="screen" />
   
-  <!-- Map Server Arguments -->
-  <!-- <arg name="map_file" default="$(env TURTLEBOT_GAZEBO_MAP_FILE)"/> -->
-
   <arg name="map_file" default="$(find Lab4)/maps/map2.yaml"/>
   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
 
+
+  <!-- Map Server Arguments -->
+  <!-- <arg name="map_file" default="$(env TURTLEBOT_GAZEBO_MAP_FILE)"/> -->
+
+
+
   <node name="tf" pkg="tf" type="static_transform_publisher"  args ="0 0 0 0 0 0 /map /odom 100"/>
 
-  <param name="robot_description" command="$(find xacro)/xacro $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro" />
+  <!-- <param name="robot_description" command="$(find xacro)/xacro $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro" /> -->
 
-  <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-urdf -model turtlebot3_burger -x $(arg x_pos) -y $(arg y_pos) -z $(arg z_pos) -param robot_description" />
+  <!-- <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-urdf -model turtlebot3_burger -x $(arg x_pos) -y $(arg y_pos) -z $(arg z_pos) -param robot_description" /> -->
 
   <!--Rviz Node-->
   <node pkg="rviz" type="rviz" name="rviz" required="true" args="-d $(find Lab4)/rviz/rbe3002_lab4.rviz"/>
@@ -26,7 +32,8 @@
   <arg name="initial_pose_x" default="0.0"/>
   <arg name="initial_pose_y" default="0.0"/>
   <arg name="initial_pose_a" default="0.0"/>
-
+<!-- AMCL -->
+  <node pkg="amcl" type="amcl" name="amcl">
   <!-- Params -->
   <!-- Filter Params -->
   <param name="min_particles"             value="2500"/>
@@ -71,12 +78,12 @@
   <param name="odom_alpha5"               value="0.2"/>
   <param name="odom_frame_id"             value="odom"/>
   <param name="base_frame_id"             value="base_footprint"/>
-  <param name="global_frame_id"           value="map"/>
+  <param name="global_frame_id"           value="map"/></node>
 
-  <!-- AMCL -->
-  <node pkg="amcl" type="amcl" name="amcl"></node>
-
-  <!-- Turtlebot3  -->
-  <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch" />
-
-  </launch>
+    <!-- Turtlebot3  -->
+  <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="burger"/>
+  
+  <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">
+    <arg name="model" value="$(arg model)"/>
+  </include>
+</launch>

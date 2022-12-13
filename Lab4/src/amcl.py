@@ -43,8 +43,8 @@ class AMCL_Test:
         
         self.initialpose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=10)
         # Create global localization service
-        self.global_loc_srv = rospy.ServiceProxy('/global_localization', Empty)
-        self.loc = Empty() # Create GlobalLocalization() object for service proxy
+        self.global_loc_srv = rospy.ServiceProxy('/global_localization', {})
+        self.loc = {} # Create GlobalLocalization() object for service proxy
         
         # Robot pos
         self.px = 0
@@ -104,6 +104,7 @@ class AMCL_Test:
         rospy.sleep(1)
         rospy.spin()
         print("AMCL Wake up")
+        
 
 if __name__ == '__main__':
     AMCL_Test().run()
