@@ -7,10 +7,13 @@ import rospy
 from nav_msgs.srv import GetPlan, GetMap
 from tf.transformations import euler_from_quaternion
 from nav_msgs.msg import GridCells, OccupancyGrid, Path, MapMetaData
-from geometry_msgs.msg import Point, Pose, PoseStamped, PoseWithCovarianceStamped, PoseArray, tfMessage
-from sensor_msgs import LaserScan
+from geometry_msgs.msg import Point, Pose, PoseStamped, PoseWithCovarianceStamped, PoseArray
+from sensor_msgs.msg import LaserScan, PointCloud, PointCloud2
 import priority_queue
-from std_srvs import GlobalLocalization
+from std_srvs.srv import Empty
+
+import drive
+import path_planner
 
 class AMCL_Test:
 
@@ -23,22 +26,26 @@ class AMCL_Test:
         rospy.init_node("amcl_test")
 
         ## Create subscribers
-        self.laser_scan_sub = rospy.Subscriber('/scan', LaserScan, self.get_laser_scan)
-        self.tf_sub = rospy.Subscriber('/tf', tfMessage, queue_size=10)
-        self.initialpose_sub = rospy.Subscriber('/initialpose', PoseWithCovarianceStamped, self.update_initialpose)
-        self.map_sub = rospy.Subscriber('/map', OccupancyGrid, self.update_map)
+        # self.laser_scan_sub = rospy.Subscriber('/scan', LaserScan, self.testing)
+        # self.tf_sub = rospy.Subscriber('/tf', tfMessage, queue_size=10)
+        # self.initialpose_sub = rospy.Subscriber('/initialpose', PoseWithCovarianceStamped, self.update_initialpose)
+        # self.map_sub = rospy.Subscriber('/map', OccupancyGrid, self.update_map)
 
-        self.goal_pose_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.call_astar)
-        ## Create publishers
-        self.amcl_pose_pub = rospy.Publisher('/amcl_pose', PoseWithCovarianceStamped, queue_size=10)
-        self.particlecloud_pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10)
-        self.tf_pub = rospy.Publisher('/tf', tfMessage, queue_size=10)
-        self.map_metadata = rospy.Publisher('/map_metadata', MapMetaData, queue_size=10)
-        self.map = rospy.Pulisher('/map', OccupancyGrid, queye_size=10)
+        # self.goal_pose_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.call_astar)
+        # ## Create publishers
+        # self.amcl_pose_pub = rospy.Publisher('/amcl_pose', PoseWithCovarianceStamped, queue_size=10)
+        # self.particlecloud_pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10)
+        # self.tf_pub = rospy.Publisher('/tf', tfMessage, queue_size=10)
+        # self.map_metadata = rospy.Publisher('/map_metadata', MapMetaData, queue_size=10)
+        # self.map = rospy.Pulisher('/map', OccupancyGrid, queye_size=10)
 
+        self.amcl_pose_sub = rospy.Subscriber('/amcl_pose', PoseWithCovarianceStamped, self.error_check)
+        
+        self.initialpose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=10)
         # Create global localization service
-        global_loc_srv = rospy.Service('global_loc', GlobalLocalization)
-
+        self.global_loc_srv = rospy.ServiceProxy('global_loc', GlobalLocalization)
+        self.loc = GlobalLocalization() # Create GlobalLocalization() object for service proxy
+        
         # Robot pos
         self.px = 0
         self.py = 0
@@ -47,14 +54,30 @@ class AMCL_Test:
         # Laser Scan
         self.laser_scan = LaserScan()
 
+        # Create variables based on previously created files
+        self.dr = drive.Lab2()
+        self.path_plan = path_planner.PathPlanner()
+        
         print("finished init")
 
+    # def testing(self):
+    #     map = self.path_plan.request_map()
+    #     pad_map = self.path_plan.calc_cspace(map, 3)
 
-    def run(self):
-        """
-        Runs the node until Ctrl-C is pressed.
-        """
-        rospy.spin()
+        
+
+    def error_check(self, msg):
+        error_margin = 0.1
+        error_x = abs(self.px - msg.pose.pose.position.x)
+        error_y = abs(self.py - msg.pose.pose.position.y)
+        if (error_x < error_margin and error_y < error_margin):
+            print("Robot is within the point cloud estimate")
+            # Publish to initialpose topic
+            self.dr.rotate(0,0)
+            self.initialpose_pub.publish(msg)
+        else:
+            self.dr.rotate(360,0.2)
+
 
     def update_initialpose(self, msg):
         """
@@ -69,58 +92,18 @@ class AMCL_Test:
         ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
         self.pth = yaw
 
-     def call_astar(self, msg):
-        """
-        Creates the path using Astar from Rviz
-        This method is a callback bound to a Subscriber.
-        :param msg [PoseStamped] The goal pose.
-        """
-        ## Create service proxy
-        path_plan = rospy.ServiceProxy('plan_path', GetPlan)
-        initial_pose = PoseStamped()
-        
-        # Save the initial pose
-        initial_pose.pose.position.x = self.px
-        initial_pose.pose.position.y = self.py
-        initial_pose.pose.orientation.w = self.pth
-        
-        tolerance = 0.1
-        
-        send = path_plan(initial_pose, msg, tolerance)
-        rospy.loginfo("sent path from rviz")
 
-        # print(send)
-        #self.drive_along_path(send)
-    
-    def get_laser_scan(self, scanMsg):
-        self.laser_scan.header = scanMsg.header
-        self.laser_scan.angle_min = scanMsg.angle_min
-        self.laser_scan.angle_max = scanMsg.angle_max
-        self.laser_scan.angle_increment = scanMsg.angle_increment
-        self.laser_scan.time_increment = scanMsg.time_increment
-        self.laser_scan.scan_time = scanMsg.scan_time
-        self.laser_scan.range_min = scanMsg.range_min
-        self.laser_scan.range_max = scanMsg.range_max
-        self.laser_scan.ranges = scanMsg.ranges
-        self.laser_scan.intensities = scanMsg.intensities
-
-    
-
-    @staticmethod
-    def request_map():
+# ----------------------------------- Main --------------------------
+    def run(self):
         """
-        Requests the map from the map server.
-        :return [OccupancyGrid] The grid if the service call was successful,
-        None in case of error.
+        Runs the node until Ctrl-C is pressed.
         """
-        rospy.loginfo("Requesting the map")
-        try:
-            rospy.wait_for_service('static_map') # Block until service is available
-            grid = rospy.ServiceProxy('static_map', GetMap)
-        except Exception:
-            print(f"Error when requesting map\n{Exception}")
-            return None
-    return grid().map
-        
+        rospy.loginfo("Global Localization Service Call")
+        self.global_loc_srv(self.loc)
+        print("AMCL Sleep")
+        rospy.sleep(1)
+        rospy.spin()
+        print("AMCL Wake up")
+
 if __name__ == '__main__':
     AMCL_Test().run()
