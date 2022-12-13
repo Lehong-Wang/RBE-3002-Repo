@@ -122,6 +122,7 @@ class Lab2:
         ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
         self.pth = yaw
         """
+        """
         trans = [0,0]
         rot = [0,0,0,0]
         try:

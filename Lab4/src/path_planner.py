@@ -431,7 +431,7 @@ class PathPlanner:
         for i in range(len(map_array)):
             x,y = PathPlanner.index_to_grid(mapdata, i)
             h_list[i] = (PathPlanner.euclidean_distance(x, y, goal[0], goal[1]))
-        print("h calculated")
+        # print("h calculated")
 
         # fill in start node
         g_list[start_index] = 0
@@ -454,7 +454,7 @@ class PathPlanner:
                 path_list = all_path_list[current_i]
                 print(f"Path: {path_list}")
 
-                path_msg = self.path_to_message(mapdata, path_list)
+                # path_msg = self.path_to_message(mapdata, path_list)
 
                 # self.path_pub.publish(path_msg)
                 # PathPlanner.print_num_value(mapdata, g_list)
@@ -538,8 +538,7 @@ class PathPlanner:
         :param path [[(x,y)]] The path as a list of tuples (grid coordinates)
         :return     [[(x,y)]] The optimized path as a list of tuples (grid coordinates)
         """
-        ### EXTRA CREDIT
-        rospy.loginfo("Optimizing path")
+        # rospy.loginfo("Optimizing path")
 
         if len(path) == 0:
             warnings.warn("Path is empty")
@@ -573,7 +572,7 @@ class PathPlanner:
         :return     [Path]        A Path message (the coordinates are expressed in the world)
         """
         ### REQUIRED CREDIT
-        rospy.loginfo("Returning a Path message")
+        # rospy.loginfo("Returning a Path message")
 
         msg = Path() # Create path msg
 
@@ -613,12 +612,14 @@ class PathPlanner:
 
     def run_phase_1(self, msg=None):
         """Start phase 1"""
+        rospy.loginfo("Recieved Command from Drive, running phase 1")
         mapdata = PathPlanner.request_map()
         if mapdata is None:
             warnings.warn("Empty Map")
             return
         cspace_map = self.calc_cspace(mapdata, self.cspace_value)
         self.frontier_goal_task_pub.publish(cspace_map)
+        rospy.loginfo("Sent Cspace to Mapping, Calling calc_frontier")
 
 
 

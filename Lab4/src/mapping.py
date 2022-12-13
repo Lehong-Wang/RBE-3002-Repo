@@ -11,7 +11,7 @@ from geometry_msgs.msg import Twist, Point, Pose, PoseStamped, PoseWithCovarianc
 from std_msgs.msg import Bool
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
-
+import tf
 
 from path_planner import *
 
@@ -39,6 +39,7 @@ class Mapping:
 
         # auto update pose
         self.sub_odom = rospy.Subscriber('/odom', Odometry, self.update_odometry)
+        self.listener = tf.TransformListener()
 
 
         # self.frontier_goal_service = rospy.Service('frontier_goal', OccupancyGrid, self.get_frontier_goal)
@@ -51,6 +52,7 @@ class Mapping:
         self.frontier_graph_pub = rospy.Publisher('/mapping/frontier_graph', GridCells, queue_size=10)
         self.frontier_goal_graph_pub = rospy.Publisher('/mapping/frontier_goal_graph', GridCells, queue_size=10)
 
+        self.phase_1_finish_pub = rospy.Publisher('/task_control/phase_1_finish', Empty, queue_size=10)
 
         # Robot pos
         self.px = 0
@@ -72,9 +74,9 @@ class Mapping:
     def calc_frontier(self, mapdata):
 
         initial_frontier_list = Mapping.find_initial_frontier(mapdata)
-        print("Calling Expanded")
+        # print("Calling Expanded")
         expanded_frontier_list = Mapping.inflate_frontier(mapdata, initial_frontier_list)
-        print("Calling Erode")
+        # print("Calling Erode") 
         eroded_frontier_list = Mapping.erode_frontier(mapdata, expanded_frontier_list)
 
         # Mapping.print_frontier(mapdata, initial_frontier_list)
@@ -91,21 +93,23 @@ class Mapping:
             chosen_frontier_group = self.choose_frontier(frontier_group_list)
             # run out of frontiers
             if chosen_frontier_group is None:
+                self.phase_1_finish_pub.publish(Empty())
+                rospy.loginfo("Mapping: No Frontier, Phase_1_finish message sent")
                 return
+
             print(f"\nChoosen Frontier Group: {chosen_frontier_group}")
             frontier_goal = self.get_group_center_point(chosen_frontier_group)
             print(f"\nFrontier Goal: {frontier_goal}")
             # if frontier_goal is walkable
-            frontier_goal_found = self.validate_frontier_walkable(frontier_goal)
+            frontier_goal_found = bool(self.validate_frontier_walkable(mapdata, frontier_goal))
             frontier_group_list.remove(chosen_frontier_group)
-
-
-        PathPlanner.publish_grid_cell(mapdata, self.frontier_goal_graph_pub, [frontier_goal])
 
         if frontier_goal is None:
             rospy.loginfo("Error: frontier goal is None")
             return
-
+        # show in rviz
+        PathPlanner.publish_grid_cell(mapdata, self.frontier_goal_graph_pub, [frontier_goal])
+        # publish to drive (reuse 2D nav goal)
         frontier_goal_world = PathPlanner.grid_to_world(mapdata, frontier_goal[0], frontier_goal[1])
         goal_msg = PoseStamped()
         goal_msg.pose.position.x = frontier_goal_world.x
@@ -113,7 +117,7 @@ class Mapping:
         self.frontier_goal_pub.publish(goal_msg)
         return frontier_goal
 
-
+    # region calc_frontier_helper
 
     @staticmethod
     def find_initial_frontier(mapdata):
@@ -146,7 +150,7 @@ class Mapping:
                 # print(f"@neighbor_have_unknown: {(x,y)}, TRUE")
 
                 return True
-        
+
         # print(f"@neighbor_have_unknown: {(x,y)}, FALSE")
 
         return False
@@ -193,7 +197,7 @@ class Mapping:
         return eroded_frontier_list
 
 
-
+    # endregion
 
     ################################ process frontier #################################
 
@@ -234,9 +238,16 @@ class Mapping:
 
 
     def choose_frontier(self, frontier_group_list):
+        # if list empty, no frontier left
+        if not frontier_group_list:
+            rospy.loginfo("No Frontier Left")
+            return None
+
         group_score_list = []
+        # calculate group score based on distance
         for frontier_group in frontier_group_list:
             group_size = len(frontier_group)
+            # filter small group
             if group_size <= MIN_FRONTIER_SIZE:
                 group_score_list.append(-1)
                 continue
@@ -283,7 +294,10 @@ class Mapping:
         return min_coord
 
 
-    def validate_frontier_walkable(self, frontier_goal):
+    def validate_frontier_walkable(self, mapdata, frontier_goal):
+
+        if frontier_goal is None:
+            return False
 
         path_plan = rospy.ServiceProxy('plan_path', GetPlan)
         initial_pose = PoseStamped()
@@ -292,18 +306,21 @@ class Mapping:
         initial_pose.pose.position.x = self.px
         initial_pose.pose.position.y = self.py
         initial_pose.pose.orientation.w = self.pth
-
-        final_pose.pose.position.x = frontier_goal[0]
-        final_pose.pose.position.y = frontier_goal[1]
+        # frontier_goal is in grid frame, convert to wrold
+        final_world = PathPlanner.grid_to_world(mapdata, frontier_goal[0], frontier_goal[1])
+        final_pose.pose.position.x = final_world.x
+        final_pose.pose.position.y = final_world.y
 
         tolerance = 0.1
-
+        rospy.loginfo(f"Calculated A star path for validating point {frontier_goal}")
+        print(f"Initial: {initial_pose}\nFinal: {final_pose}\n")
         # send stuff to service
         # received return from service
         send = path_plan(initial_pose, final_pose, tolerance)
-        rospy.loginfo(f"Calculated A star path for validating point {frontier_goal}")
+        returned_path = send.plan.poses
+        rospy.loginfo(f"Path returned: {returned_path}")
 
-        return not (send is None)
+        return bool(returned_path)
 
 
 
@@ -381,14 +398,20 @@ class Mapping:
         This method is a callback bound to a Subscriber.
         :param msg [Odometry] The current odometry information.
         """
-        self.px = msg.pose.pose.position.x
-        self.py = msg.pose.pose.position.y
-        quat_orig = msg.pose.pose.orientation
-        quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
-        ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
+
+
+        trans = [0,0]
+        rot = [0,0,0,0]
+        try:
+            (trans,rot) = self.listener.lookupTransform('/map','/base_footprint',rospy.Time(0)) 
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            print("HEY I DIDN'T WORK")
+        self.px = trans[0]
+        self.py = trans[1]
+
+        quat_list = [rot[0], rot[1], rot[2], rot[3]]
+        (roll, pitch, yaw) = euler_from_quaternion(quat_list)
         self.pth = yaw
-
-
 
 
     # TESTED
@@ -404,10 +427,35 @@ class Mapping:
         try:
             rospy.wait_for_service('dynamic_map') # Block until service is available
             grid = rospy.ServiceProxy('dynamic_map', GetMap)
+            # rospy.wait_for_service('static_map') # Block until service is available
+            # grid = rospy.ServiceProxy('static_map', GetMap)
         except Exception:
             print(f"Error when requesting map\n{Exception}")
             return None
         return grid().map
+
+
+    @staticmethod
+    def get_test_map():
+        mapdata = OccupancyGrid()
+        mapdata.info.width = 8
+        mapdata.info.height = 8
+        a = 100
+        b = 10
+        c = -1
+        mapdata.data = (0,a,0,0,0,c,c,c,\
+                        0,a,0,b,c,c,c,0,\
+                        c,a,0,0,c,c,b,b,\
+                        b,a,b,0,c,0,b,0,\
+                        b,b,a,0,0,0,0,0,\
+                        0,0,0,0,b,0,0,0,\
+                        0,0,0,0,b,0,0,0,\
+                        0,0,0,0,b,c,0,0,\
+                        )
+
+        return mapdata
+
+
 
 
     # endregion
@@ -429,6 +477,13 @@ class Mapping:
         # frontier_list = self.calc_frontier(mapdata)
 
         # Mapping.group_frontier(mapdata, frontier_list)
+        print("Sleep")
+        rospy.sleep(1)
+        print("Wake up")
+
+        # mapdata = Mapping.request_map()
+        # mapdata = Mapping.get_test_map()
+        # self.calc_frontier(mapdata)
 
 
         rospy.spin()

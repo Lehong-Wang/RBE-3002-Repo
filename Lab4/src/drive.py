@@ -12,7 +12,7 @@ from geometry_msgs.msg import Twist, Point, Pose, PoseStamped, PoseWithCovarianc
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from std_msgs.msg import Empty
-
+import tf
 
 
 LINEAR_MAX = 0.05
@@ -33,6 +33,7 @@ class Lab2:
         self.pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         # auto update pose
         self.sub_odom = rospy.Subscriber('/odom', Odometry, self.update_odometry)
+        self.listener = tf.TransformListener()
 
         self.goal_pose_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.call_astar)
 
@@ -102,19 +103,38 @@ class Lab2:
 
 
 
+    # def update_odometry(self, msg):
+    #     """
+    #     Updates the current pose of the robot.
+    #     This method is a callback bound to a Subscriber.
+    #     :param msg [Odometry] The current odometry information.
+    #     """
+    #     self.px = msg.pose.pose.position.x
+    #     self.py = msg.pose.pose.position.y
+    #     quat_orig = msg.pose.pose.orientation
+    #     quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
+    #     ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
+    #     self.pth = yaw
+    #     # print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
+
     def update_odometry(self, msg):
         """
         Updates the current pose of the robot.
         This method is a callback bound to a Subscriber.
         :param msg [Odometry] The current odometry information.
         """
-        self.px = msg.pose.pose.position.x
-        self.py = msg.pose.pose.position.y
-        quat_orig = msg.pose.pose.orientation
-        quat_list = [ quat_orig.x , quat_orig.y , quat_orig.z , quat_orig.w]
-        ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
+        trans = [0,0]
+        rot = [0,0,0,0]
+        try:
+            (trans,rot) = self.listener.lookupTransform('/map','/base_footprint',rospy.Time(0)) 
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            print("HEY I DIDN'T WORK")
+        self.px = trans[0]
+        self.py = trans[1]
+
+        quat_list = [rot[0], rot[1], rot[2], rot[3]]
+        (roll, pitch, yaw) = euler_from_quaternion(quat_list)
         self.pth = yaw
-        # print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")
 
 
 
@@ -419,13 +439,14 @@ class Lab2:
         # send stuff to service
         # received return from service
         send = path_plan(initial_pose, msg, tolerance)
-        rospy.loginfo("sent path from rviz")
+        rospy.loginfo("Got Path from Path_Plan, calling drive_along_path")
 
         # print(send)
         self.drive_along_path(send)
-
+        rospy.loginfo("Drive Finished Driving a path")
 
         self.run_phase_1_pub.publish(Empty())
+        rospy.loginfo("Send run_phase_1 to Path_Plan")
 
 
 
