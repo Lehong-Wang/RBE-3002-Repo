@@ -7,7 +7,7 @@
   <arg name="maze" default="final_maze"/> -->
     
   <!-- Lab4 -->
-  <!-- <node pkg="Lab4" type="amcl.py" name="amcl_test" output="screen" /> -->
+  <node pkg="Lab4" type="amcl.py" name="amcl_test" output="screen" />
   
   <arg name="map_file" default="$(find Lab4)/maps/map3.yaml"/>
   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
