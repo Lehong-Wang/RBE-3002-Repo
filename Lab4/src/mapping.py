@@ -53,6 +53,7 @@ class Mapping:
         self.frontier_goal_graph_pub = rospy.Publisher('/mapping/frontier_goal_graph', GridCells, queue_size=10)
 
         self.phase_1_finish_pub = rospy.Publisher('/task_control/phase_1_finish', Empty, queue_size=10)
+        self.found_path_pub = rospy.Publisher('/task_control/path', Path, queue_size=10)
 
         # Robot pos
         self.px = 0
@@ -97,24 +98,30 @@ class Mapping:
                 rospy.loginfo("Mapping: No Frontier, Phase_1_finish message sent")
                 return
 
-            print(f"\nChoosen Frontier Group: {chosen_frontier_group}")
+            # print(f"\nChoosen Frontier Group: {chosen_frontier_group}")
             frontier_goal = self.get_group_center_point(chosen_frontier_group)
             print(f"\nFrontier Goal: {frontier_goal}")
             # if frontier_goal is walkable
-            frontier_goal_found = bool(self.validate_frontier_walkable(mapdata, frontier_goal))
-            frontier_group_list.remove(chosen_frontier_group)
+            have_path, get_plan_msg = self.validate_frontier_walkable(mapdata, frontier_goal)
+            if have_path:
+                frontier_goal_found = True
+                # print(get_plan_msg)
+                self.found_path_pub.publish(get_plan_msg.plan)
+            else:
+                rospy.loginfo(f"{frontier_goal} not reachable")
+                frontier_group_list.remove(chosen_frontier_group)
 
         if frontier_goal is None:
             rospy.loginfo("Error: frontier goal is None")
             return
         # show in rviz
         PathPlanner.publish_grid_cell(mapdata, self.frontier_goal_graph_pub, [frontier_goal])
-        # publish to drive (reuse 2D nav goal)
-        frontier_goal_world = PathPlanner.grid_to_world(mapdata, frontier_goal[0], frontier_goal[1])
-        goal_msg = PoseStamped()
-        goal_msg.pose.position.x = frontier_goal_world.x
-        goal_msg.pose.position.y = frontier_goal_world.y
-        self.frontier_goal_pub.publish(goal_msg)
+        # # publish to drive (reuse 2D nav goal)
+        # frontier_goal_world = PathPlanner.grid_to_world(mapdata, frontier_goal[0], frontier_goal[1])
+        # goal_msg = PoseStamped()
+        # goal_msg.pose.position.x = frontier_goal_world.x
+        # goal_msg.pose.position.y = frontier_goal_world.y
+        # self.frontier_goal_pub.publish(goal_msg)
         return frontier_goal
 
     # region calc_frontier_helper
@@ -132,7 +139,7 @@ class Mapping:
             if Mapping.neighbor_have_unknown(mapdata, x, y):
                 frontier_list.append((x,y))
 
-        print(f"\nInitial Frontier List: {frontier_list}")
+        # print(f"\nInitial Frontier List: {frontier_list}")
         # Mapping.print_frontier(mapdata, frontier_list)
 
         return frontier_list
@@ -170,7 +177,7 @@ class Mapping:
                 if value == 0 and n_coord not in expanded_frontier_list:
                     expanded_frontier_list.append(n_coord)
 
-        print(f"\nExpanded Frontier List: {expanded_frontier_list}")
+        # print(f"\nExpanded Frontier List: {expanded_frontier_list}")
         # Mapping.print_frontier(mapdata, expanded_frontier_list)
 
         return expanded_frontier_list
@@ -191,7 +198,7 @@ class Mapping:
                         eroded_frontier_list.remove(f_coord)
                     continue
 
-        print(f"\nEroded Frontier List: {eroded_frontier_list}")
+        # print(f"\nEroded Frontier List: {eroded_frontier_list}")
         # Mapping.print_frontier(mapdata, eroded_frontier_list)
 
         return eroded_frontier_list
@@ -228,9 +235,9 @@ class Mapping:
 
             frontier_group_list.append(new_group)
 
-        print("\nFinal Group List:")
-        for group in frontier_group_list:
-            print(group)
+        # print("\nFinal Group List:")
+        # for group in frontier_group_list:
+        #     print(group)
         return frontier_group_list
 
 
@@ -313,14 +320,14 @@ class Mapping:
 
         tolerance = 0.1
         rospy.loginfo(f"Calculated A star path for validating point {frontier_goal}")
-        print(f"Initial: {initial_pose}\nFinal: {final_pose}\n")
+        # print(f"Initial: {initial_pose.pose.position}\nFinal: {final_pose.pose.position}\n")
         # send stuff to service
-        # received return from service
+        # received GetPlan msg from service
         send = path_plan(initial_pose, final_pose, tolerance)
         returned_path = send.plan.poses
-        rospy.loginfo(f"Path returned: {returned_path}")
+        # rospy.loginfo(f"Path returned: {returned_path}")
 
-        return bool(returned_path)
+        return [bool(returned_path), send]
 
 
 

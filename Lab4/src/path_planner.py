@@ -14,13 +14,22 @@ import priority_queue
 
 
 CSPACE_LEN = 0.1
+# CSPACE_LEN = 0
 RESOLUTION = 0.02
 
+FREE_VAL = 0
+WALL_VAL = 100
+CSPACE_VAL = 10
+PATH_VAL = 1
+UNKNOWN_VAL = -1
+
+TURN_WEIGHT = 5
+EXPANDED_WEIGHT = 10
 
 class PathPlanner:
 
 
-    
+
     def __init__(self):
         """
         Class constructor
@@ -62,13 +71,16 @@ class PathPlanner:
 
 
         self.cspace_value = math.ceil(CSPACE_LEN / RESOLUTION)
-
+        self.path_partial = 0.8
 
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
         rospy.loginfo("Path planner node ready")
 
 
+
+
+    # region helper
 
     @staticmethod
     def grid_to_index(mapdata, x, y):
@@ -172,6 +184,24 @@ class PathPlanner:
             world.append(newPose)
         return world
 
+    @staticmethod
+    def path_to_message(mapdata, path):
+        """
+        Takes a path on the grid and returns a Path message.
+        :param path [[(int,int)]] The path on the grid (a list of tuples)
+        :return     [Path]        A Path message (the coordinates are expressed in the world)
+        """
+        ### REQUIRED CREDIT
+        # rospy.loginfo("Returning a Path message")
+
+        msg = Path() # Create path msg
+
+        msg.header.stamp = rospy.Time.now()
+        msg.header.frame_id = 'map'
+        msg.poses = PathPlanner.path_to_poses(mapdata, path) # Store poses using path_to_poses()
+
+        return msg
+
 
     # TESTED
     @staticmethod
@@ -204,7 +234,7 @@ class PathPlanner:
     @staticmethod
     def is_cell_free(mapdata, x, y):
         index = PathPlanner.grid_to_index(mapdata, x, y)
-        is_free = mapdata.data[index] == 0 or mapdata.data[index] == -1
+        is_free = mapdata.data[index] == FREE_VAL or mapdata.data[index] == UNKNOWN_VAL
         return is_free
 
     @staticmethod
@@ -214,8 +244,23 @@ class PathPlanner:
                             min(x,y) >= 0
 
         index = PathPlanner.grid_to_index(mapdata, x, y)
-        is_wall = mapdata.data[index] == 100
+        is_wall = mapdata.data[index] == WALL_VAL
         return within_bound and not is_wall
+
+
+    @staticmethod
+    def is_near_cspace(mapdata, i):
+        width = mapdata.info.width
+        height = mapdata.info.height
+        map_array = mapdata.data
+        is_near = False
+        # check neighbors
+        neib_i_list = [i-1, i+1, i-width-1, i-width, i-width+1, i+width-1, i+width, i+width+1]
+        for neib_i in neib_i_list:
+            if neib_i > 0 and neib_i < len(map_array):
+                is_near |= (map_array[neib_i] == CSPACE_VAL or map_array[neib_i] == WALL_VAL)
+
+        return is_near
 
 
     # TESTED
@@ -286,8 +331,11 @@ class PathPlanner:
 
         return grid().map
 
+    # endregion
 
 
+
+    # region cspace
 
     # TESTED
     def calc_cspace(self, mapdata, padding):
@@ -340,7 +388,7 @@ class PathPlanner:
                     new_map_array.append(mapdata.data[PathPlanner.grid_to_index(mapdata, x, y)])
                 else:
                     # value = 10 for cspace
-                    new_map_array.append(10)
+                    new_map_array.append(CSPACE_VAL)
                     paded_cell_list.append((x,y))
 
         cspace.header.frame_id = "map"
@@ -386,6 +434,7 @@ class PathPlanner:
         warnings.warn(warn_str)
         return None
 
+    # endregion
 
 
 
@@ -422,6 +471,7 @@ class PathPlanner:
         from_list = [None] * (width * height)
         visited_list = [None] * (width * height)
         all_path_list = [None] * (width * height)
+        expanded_cspace = PathPlanner.calc_expanded_cspace(mapdata)
 
         pq = priority_queue.PriorityQueue()
 
@@ -429,8 +479,9 @@ class PathPlanner:
 
         # calculate h
         for i in range(len(map_array)):
-            x,y = PathPlanner.index_to_grid(mapdata, i)
-            h_list[i] = (PathPlanner.euclidean_distance(x, y, goal[0], goal[1]))
+            if map_array[i] == 0:
+                x,y = PathPlanner.index_to_grid(mapdata, i)
+                h_list[i] = (PathPlanner.euclidean_distance(x, y, goal[0], goal[1]))
         # print("h calculated")
 
         # fill in start node
@@ -453,8 +504,10 @@ class PathPlanner:
 
                 path_list = all_path_list[current_i]
                 print(f"Path: {path_list}")
+                # PathPlanner.print_path(mapdata, path_list)
+                # PathPlanner.print_num_value(mapdata, g_list)
 
-                # path_msg = self.path_to_message(mapdata, path_list)
+                # path_msg = PathPlanner.path_to_message(mapdata, path_list)
 
                 # self.path_pub.publish(path_msg)
                 # PathPlanner.print_num_value(mapdata, g_list)
@@ -477,11 +530,12 @@ class PathPlanner:
                 neighbor_path.append(neib)
 
                 path_value = neighbor_path
-                g_value = PathPlanner.calc_g_value(neighbor_path)
+                g_value = PathPlanner.calc_g_value(mapdata, neighbor_path, expanded_cspace)
                 x,y = PathPlanner.index_to_grid(mapdata, neib_i)
-                h_list[neib_i] = (PathPlanner.euclidean_distance(x, y, goal[0], goal[1]))
-
-                f_value = g_value + h_list[neib_i]
+                # h_list[neib_i] = (PathPlanner.euclidean_distance(x, y, goal[0], goal[1]))
+                # f_value = g_value + h_list[neib_i]
+                h_value = PathPlanner.calc_h_value(neighbor_path, x, y, goal[0], goal[1])
+                f_value = g_value + h_value
 
                 # if successfully put, return True
                 if pq.put(neib, f_value):
@@ -504,9 +558,10 @@ class PathPlanner:
 
 
     @staticmethod
-    def calc_g_value(from_path):
+    def calc_g_value(mapdata, from_path, expanded_cspace):
         """calculat g value based on real distance and number of turns"""
-        turn_weight = 0.7
+        turn_weight = TURN_WEIGHT
+        expanded_cspace_weight = EXPANDED_WEIGHT
         walk_distance = 0
         turn_count = 0
         for i in range(1,len(from_path)):
@@ -515,6 +570,9 @@ class PathPlanner:
             # calculate distance walked
             this_dist = math.sqrt((this[0]-last[0])**2 + (this[1]-last[1])**2)
             walk_distance += this_dist
+            # add weight for expanded cspace
+            this_i = PathPlanner.grid_to_index(mapdata, this[0], this[1])
+            walk_distance += expanded_cspace[this_i] * expanded_cspace_weight
 
             if i == len(from_path)-1:
                 continue
@@ -528,8 +586,46 @@ class PathPlanner:
         return g_value
 
 
+    @staticmethod
+    def calc_h_value(from_path, neib_x, neib_y, goal_x, goal_y):
+        dist = PathPlanner.euclidean_distance(neib_x, neib_y, goal_x, goal_y)
+        if len(from_path) < 2:
+            return dist
+
+        turn_weight = 10
+
+        this = from_path[-1]
+        last = from_path[-2]
+        next = (neib_x, neib_y)
+        if not (this[0]-last[0] == next[0]-this[0] and \
+                this[1]-last[1] == next[1]-this[1]):
+            dist += turn_weight
+        return dist
 
 
+    @staticmethod
+    def calc_expanded_cspace(mapdata):
+        """
+        give higher cost to cell around cspace
+        return a map of if cell is near cspace
+        """
+        width = mapdata.info.width
+        height = mapdata.info.height
+        map_array = mapdata.data
+        expanded_cspace = [0] * len(map_array)
+        for i,val in enumerate(map_array):
+            if val == FREE_VAL:
+                expanded_cspace[i] = int(PathPlanner.is_near_cspace(mapdata, i))
+        
+        # print_map = copy.deepcopy(mapdata)
+        # print_map.data = expanded_cspace
+        # PathPlanner.print_map(print_map)
+        return expanded_cspace
+
+    @staticmethod
+    def get_partial_path(path, partial):
+        partial_path_length = math.floor(len(path) * partial)
+        return path[:partial_path_length]
 
     @staticmethod
     def optimize_path(path):
@@ -560,27 +656,12 @@ class PathPlanner:
                 new_path.append(this)
 
         new_path.append(path[-1])
-        print(new_path)
+        print(f"Optimized Path: {new_path}")
         return new_path
 
 
 
-    def path_to_message(self, mapdata, path):
-        """
-        Takes a path on the grid and returns a Path message.
-        :param path [[(int,int)]] The path on the grid (a list of tuples)
-        :return     [Path]        A Path message (the coordinates are expressed in the world)
-        """
-        ### REQUIRED CREDIT
-        # rospy.loginfo("Returning a Path message")
 
-        msg = Path() # Create path msg
-
-        msg.header.stamp = rospy.Time.now()
-        msg.header.frame_id = 'map'
-        msg.poses = PathPlanner.path_to_poses(mapdata, path) # Store poses using path_to_poses()
-
-        return msg
 
 
     def plan_path(self, msg):
@@ -601,10 +682,13 @@ class PathPlanner:
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
         path  = self.a_star(cspacedata, start, goal)
         ## Optimize waypoints
-        waypoints = PathPlanner.optimize_path(path)
+        partial_path = PathPlanner.get_partial_path(path, self.path_partial)
+        waypoints = PathPlanner.optimize_path(partial_path)
         ## Return a Path message
-        path_msg = self.path_to_message(mapdata, waypoints)
+        path_msg = PathPlanner.path_to_message(mapdata, waypoints)
+
         self.path_pub.publish(path_msg)
+        # print(f"\nReturn from Service: \n{path_msg}")
         return path_msg
 
 
@@ -636,16 +720,18 @@ class PathPlanner:
             for j in range(width):
                 # print is up side down, need to print top to bottom
                 value = map_array[PathPlanner.grid_to_index(mapdata, j, (height-i-1))]
-                if value == 100:
+                if value == WALL_VAL:
                     print("#", end=" ")
-                elif value == 0:
+                elif value == FREE_VAL:
                     print(" ", end=" ")
-                elif value == -1:
+                elif value == UNKNOWN_VAL:
                     print("+", end=" ")
-                elif value == 10:
+                elif value == CSPACE_VAL:
                     print("-", end=" ")
                 elif value == 5:
                     print("@", end=" ")
+                elif value == PATH_VAL:
+                    print("&", end=" ")
                 else:
                     print("?", end=" ")
             print("")
@@ -675,6 +761,13 @@ class PathPlanner:
             print("\n", end="")
 
 
+    @staticmethod
+    def print_path(mapdata, path_list):
+        print_map = copy.deepcopy(mapdata)
+        for coord in path_list:
+            print_map = PathPlanner.modify_map(print_map, coord[0], coord[1], 1)
+        PathPlanner.print_map(print_map)
+
 
     @staticmethod
     def modify_map(mapdata, x, y, value):
@@ -694,8 +787,17 @@ class PathPlanner:
         mapdata = OccupancyGrid()
         mapdata.info.width = 5
         mapdata.info.height = 5
+
+        a = WALL_VAL
+        b = CSPACE_VAL
+        c = UNKNOWN_VAL
         # mapdata.data = (-1,-1,0,0,0, 0,0,0,-1,0, 0,100,0,0,0, 0,0,0,0,0, 0,0,0,100,100)
-        mapdata.data = (-1,100,0,0,0, 0,100,0,0,0, 0,0,0,0,0, 0,0,0,100,0, 100,0,0,100,-1)
+        mapdata.data = (0,a,a,a,0,\
+                        0,b,b,b,0,\
+                        0,0,0,0,0,\
+                        0,0,0,0,0,\
+                        0,0,0,0,0\
+                        )
 
         return mapdata
 
@@ -728,8 +830,13 @@ class PathPlanner:
         # mapdata = PathPlanner.request_map()
         # self.calc_cspace(mapdata, self.cspace_value)
         self.run_phase_1()
-
         rospy.spin()
+
+        mapdata = PathPlanner.get_test_map()
+        PathPlanner.print_map(mapdata)
+        self.a_star(mapdata, (0,2), (4,3))
+
+
 
 
 if __name__ == '__main__':

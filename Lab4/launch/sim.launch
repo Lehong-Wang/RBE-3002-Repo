@@ -9,6 +9,8 @@
 
   <!-- <include file="$(find turtlebot3_bringup)/launch/turtlebot3_model.launch"/> -->
   <!-- <node name="rviz_lab4" pkg="rviz" type="rviz" args="-d $(find Lab4)/rviz/rbe3002_lab4.rviz"/> -->
+  <node pkg="Lab4" type="drive.py" name="lab2_drive_node" output="screen" />
+  <!-- <node pkg="Lab4" type="path_planner.py" name="lab2_drive_node" output="screen" /> -->
   
   <!-- <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="burger"/> -->
 
