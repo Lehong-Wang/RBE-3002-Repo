@@ -11,6 +11,7 @@ from geometry_msgs.msg import Point, Pose, PoseStamped, PoseWithCovarianceStampe
 from sensor_msgs.msg import LaserScan, PointCloud, PointCloud2
 import priority_queue
 from std_srvs.srv import Empty
+import rosservice
 
 import drive
 import path_planner
@@ -42,9 +43,6 @@ class AMCL_Test:
         self.amcl_pose_sub = rospy.Subscriber('/amcl_pose', PoseWithCovarianceStamped, self.error_check)
         
         self.initialpose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=10)
-        # Create global localization service
-        self.global_loc_srv = rospy.ServiceProxy('/global_localization', {})
-        self.loc = {} # Create GlobalLocalization() object for service proxy
         
         # Robot pos
         self.px = 0
@@ -99,7 +97,7 @@ class AMCL_Test:
         Runs the node until Ctrl-C is pressed.
         """
         rospy.loginfo("Global Localization Service Call")
-        self.global_loc_srv(self.loc)
+        rosservice.call_service('/global_localization', Empty)
         print("AMCL Sleep")
         rospy.sleep(1)
         rospy.spin()
