@@ -90,19 +90,22 @@ class AMCL_Test:
         ( roll , pitch , yaw ) = euler_from_quaternion ( quat_list )
         self.pth = yaw
 
-
+    def global_loc(self):
+        rospy.wait_for_service('global_localization')
+        try:
+            global_loc = rospy.ServiceProxy('global_localization', Empty)
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
 # ----------------------------------- Main --------------------------
     def run(self):
         """
         Runs the node until Ctrl-C is pressed.
         """
-        rospy.loginfo("Global Localization Service Call")
-        rospy.wait_for_service('global_localization')
-        rospy.ServiceProxy('global_localization', Empty)
-        #rosservice.call_service('/global_localization', Empty)
         print("AMCL Sleep")
         rospy.sleep(1)
         rospy.spin()
+        rospy.loginfo("Global Localization Service Call")
+        self.global_loc()
         print("AMCL Wake up")
         
 
