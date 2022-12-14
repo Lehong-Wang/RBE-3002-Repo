@@ -73,6 +73,7 @@ class Mapping:
 
 
     def calc_frontier(self, mapdata):
+        rospy.loginfo("Calculating Frontier")
 
         initial_frontier_list = Mapping.find_initial_frontier(mapdata)
         # print("Calling Expanded")
@@ -139,7 +140,7 @@ class Mapping:
             if Mapping.neighbor_have_unknown(mapdata, x, y):
                 frontier_list.append((x,y))
 
-        # print(f"\nInitial Frontier List: {frontier_list}")
+        print(f"\nInitial Frontier List: {frontier_list}")
         # Mapping.print_frontier(mapdata, frontier_list)
 
         return frontier_list
@@ -177,7 +178,7 @@ class Mapping:
                 if value == 0 and n_coord not in expanded_frontier_list:
                     expanded_frontier_list.append(n_coord)
 
-        # print(f"\nExpanded Frontier List: {expanded_frontier_list}")
+        print(f"\nExpanded Frontier List: {expanded_frontier_list}")
         # Mapping.print_frontier(mapdata, expanded_frontier_list)
 
         return expanded_frontier_list
@@ -198,7 +199,7 @@ class Mapping:
                         eroded_frontier_list.remove(f_coord)
                     continue
 
-        # print(f"\nEroded Frontier List: {eroded_frontier_list}")
+        print(f"\nEroded Frontier List: {eroded_frontier_list}")
         # Mapping.print_frontier(mapdata, eroded_frontier_list)
 
         return eroded_frontier_list
@@ -264,11 +265,15 @@ class Mapping:
                 x_pos_sum += coord[0]
                 y_pos_sum += coord[1]
             group_pos = (x_pos_sum/group_size, y_pos_sum/group_size)
+            print(f"Group Pos: {group_pos}")
 
             group_dist = math.sqrt((self.px-group_pos[0])**2 + (self.py-group_pos[1])**2)
             # shorter distance have higher score
             group_score_list.append(1/group_dist)
 
+        print(f"\nRobot Pos: {(self.px, self.py)}")
+        print(f"Score List: {group_score_list}")
+        # print(f"")
         max_score = max(group_score_list)
         if max_score == -1:
             rospy.loginfo("No Frontier Left")

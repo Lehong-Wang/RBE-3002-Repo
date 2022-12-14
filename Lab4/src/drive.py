@@ -18,8 +18,8 @@ import tf
 LINEAR_MAX = 0.05
 ANGULAR_MAX = 0.15
 
-# LINEAR_MAX = 0.2
-# ANGULAR_MAX = 0.5
+LINEAR_MAX = 0.2
+ANGULAR_MAX = 0.5
 
 class Lab2:
 

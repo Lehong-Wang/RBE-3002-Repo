@@ -15,6 +15,7 @@ import priority_queue
 CSPACE_LEN = 0.09
 # CSPACE_LEN = 0
 RESOLUTION = 0.015
+RESOLUTION = 0.05
 
 FREE_VAL = 0
 WALL_VAL = 100
@@ -829,11 +830,12 @@ class PathPlanner:
         # mapdata = PathPlanner.request_map()
         # self.calc_cspace(mapdata, self.cspace_value)
         self.run_phase_1()
+        print(f"CSpace padding: {self.cspace_value}")
         rospy.spin()
 
-        mapdata = PathPlanner.get_test_map()
-        PathPlanner.print_map(mapdata)
-        self.a_star(mapdata, (0,2), (4,3))
+        # mapdata = PathPlanner.get_test_map()
+        # PathPlanner.print_map(mapdata)
+        # self.a_star(mapdata, (0,2), (4,3))
 
 
 
