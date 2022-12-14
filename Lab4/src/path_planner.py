@@ -340,7 +340,7 @@ class PathPlanner:
         rospy.loginfo("Requesting the map")
         print(f"Running ar PHASE: {PHASE}")
         try:
-            if PHASE == 1:
+            if PHASE == 1 or PHASE == 2:
                 rospy.wait_for_service('dynamic_map') # Block until service is available
                 grid = rospy.ServiceProxy('dynamic_map', GetMap)
             elif PHASE == 3:
@@ -348,6 +348,7 @@ class PathPlanner:
                 grid = rospy.ServiceProxy('static_map', GetMap)
             else:
                 rospy.loginfo(f"ERROR: PHASE not defined: {PHASE}")
+                grid = rospy.ServiceProxy('dynamic_map', GetMap)
         except Exception:
             print(f"Error when requesting map\n{Exception}")
             return None
@@ -707,7 +708,7 @@ class PathPlanner:
         ## Optimize waypoints
         if PHASE == 1:
             partial_path = PathPlanner.get_partial_path(path, self.path_partial)
-        elif PHASE == 3:
+        elif PHASE == 2 or PHASE == 3:
             partial_path = path
         else:
             rospy.loginfo(f"ERROR: PHASE not defined: {PHASE}")
@@ -856,9 +857,10 @@ class PathPlanner:
         Runs the node until Ctrl-C is pressed.
         """
         rospy.loginfo("Path Planner sleeping")
-        self.request_init_phase_pub.publish(Empty())
         rospy.sleep(1)
         rospy.loginfo("Wake up")
+        self.request_init_phase_pub.publish(Empty())
+
 
         # mapdata = PathPlanner.request_map()
         # self.calc_cspace(mapdata, self.cspace_value)
