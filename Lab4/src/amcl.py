@@ -58,7 +58,7 @@ class AMCL_Test:
         
         print("finished init")
 
-        
+
     def error_check(self, msg):
         error_margin = .2
         
