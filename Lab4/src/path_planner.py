@@ -12,10 +12,9 @@ from std_msgs.msg import Empty
 import priority_queue
 
 
-
-CSPACE_LEN = 0.1
+CSPACE_LEN = 0.09
 # CSPACE_LEN = 0
-RESOLUTION = 0.02
+RESOLUTION = 0.015
 
 FREE_VAL = 0
 WALL_VAL = 100
