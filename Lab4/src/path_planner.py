@@ -271,12 +271,34 @@ class PathPlanner:
         map_array = mapdata.data
         is_near = False
         # check neighbors
-        neib_i_list = [i-1, i+1, i-width-1, i-width, i-width+1, i+width-1, i+width, i+width+1]
+        neib_i_list = [i-1, i+1, i-width-1, i-width, i-width+1, i+width-1, i+width, i+width+1, \
+                        i-2, i+2, i-2*width, i+2*width, \
+                            i-width-2, i-width+2, i+width-2, i+width+2,\
+                                i-2*width+1, i+2*width+1, i-2*width-1, i+2*width-1,]
         for neib_i in neib_i_list:
             if neib_i > 0 and neib_i < len(map_array):
                 is_near |= (map_array[neib_i] == CSPACE_VAL or map_array[neib_i] == WALL_VAL)
+                if is_near:
+                    break
 
         return is_near
+
+
+    # @staticmethod
+    # def is_near_cspace_neib(mapdata, i):
+    #     width = mapdata.info.width
+    #     height = mapdata.info.height
+    #     map_array = mapdata.data
+    #     is_near = False
+    #     # check neighbors
+    #     neib_i_list = [i-1, i+1, i-width-1, i-width, i-width+1, i+width-1, i+width, i+width+1, \
+    #                     ]
+    #     for neib_i in neib_i_list:
+    #         if neib_i > 0 and neib_i < len(map_array):
+    #             is_near |= (map_array[neib_i] == CSPACE_VAL or map_array[neib_i] == WALL_VAL)
+    #             if is_near:
+    #                 break
+    #     return is_near
 
 
     # TESTED

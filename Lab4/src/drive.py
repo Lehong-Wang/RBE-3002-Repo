@@ -15,8 +15,8 @@ from std_msgs.msg import Empty
 import tf
 
 
-LINEAR_MAX = 0.05
-ANGULAR_MAX = 0.2
+LINEAR_MAX = 0.1
+ANGULAR_MAX = 0.35
 
 # LINEAR_MAX = 0.2
 # ANGULAR_MAX = 0.5
@@ -471,7 +471,7 @@ class Lab2:
         # self.run_wave_point_list_pid(wave_point_list, 0.1)
         self.run_wave_point_list_goto(wave_point_list[1:], LINEAR_MAX, ANGULAR_MAX)
         rospy.loginfo("Drive Finished Driving a path")
-
+        rospy.sleep(2)
         self.run_phase_1_pub.publish(Empty())
         rospy.loginfo("Send run_phase_1 to Path_Plan")
 
