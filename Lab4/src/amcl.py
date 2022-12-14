@@ -64,17 +64,20 @@ class AMCL_Test:
         print(f"Pos: {(round(msg.pose.pose.position.x,3), round(msg.pose.pose.position.y,3))}")
         print(f"Var: {(round(var_x,3), round(var_y,3), round(var_th,3))}")
 
+        print(f"Max: {max(var_x, var_y, var_th)}")
+
         # print(f"IS calibrated: {self.is_calibrated}")
         if not self.is_calibrated:
             # amcl variance below torlerence
             # var_th is usually larger than others
-            if max(var_x, var_y, var_th) < self.variance_threshold:
+            if max(var_x, var_y, var_th/3) < self.variance_threshold:
 
                 self.send_speed(0,0)
                 self.is_calibrated = True
                 return
             rospy.loginfo(f"AMCL not stable: \nVar: {(var_x, var_y, var_th)}")
             self.send_speed(0, self.calib_rot_speed)
+
 
         if self.is_calibrated:
             # update pos with amcl
@@ -86,12 +89,13 @@ class AMCL_Test:
             self.pth = yaw
             print(f"update_odometry {(round(self.px,3), round(self.py,3), round(self.pth,3))}")     
 
-            if max(var_x, var_y, var_th) > self.variance_threshold * 2:
+            if max(var_x, var_y, var_th/3) > self.variance_threshold * 2:
                 rospy.loginfo(f"AMCL Variance too big:\nVar: {(var_x, var_y, var_th)}")
                 rospy.loginfo("Reinitializing AMCL")
                 self.is_calibrated = False
                 self.global_loc()
                 self.send_speed(0, self.calib_rot_speed)
+
 
 
 
@@ -132,9 +136,12 @@ class AMCL_Test:
         rospy.sleep(1)
         # initilize to phasee 3
 
+
         rospy.loginfo("Global Localization Service Call")
         self.global_loc()
         print("AMCL Wake up")
+        self.send_speed(0, self.calib_rot_speed)
+
         rospy.spin()
 
 

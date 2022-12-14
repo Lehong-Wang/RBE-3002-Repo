@@ -16,10 +16,10 @@ import tf
 
 
 LINEAR_MAX = 0.05
-ANGULAR_MAX = 0.15
+ANGULAR_MAX = 0.2
 
-LINEAR_MAX = 0.2
-ANGULAR_MAX = 0.5
+# LINEAR_MAX = 0.2
+# ANGULAR_MAX = 0.5
 
 class Lab2:
 
@@ -200,7 +200,7 @@ class Lab2:
         # Create variables
         target_pth = (mapped_init_pth+angle) % (2*math.pi) - math.pi
         error = float('inf')
-        tolerance = 0.05
+        tolerance = 0.1
 
         # If reached desired distance
         while (error > tolerance):

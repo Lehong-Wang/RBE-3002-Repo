@@ -7,9 +7,9 @@
   <arg name="maze" default="final_maze"/> -->
     
   <!-- Lab4 -->
-  <node pkg="Lab4" type="amcl.py" name="amcl_test" output="screen" />
+  <!-- <node pkg="Lab4" type="amcl.py" name="amcl_test" output="screen" /> -->
   
-  <arg name="map_file" default="$(find Lab4)/maps/map2.yaml"/>
+  <arg name="map_file" default="$(find Lab4)/maps/demo.yaml"/>
   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
 
 
@@ -37,7 +37,7 @@
   <!-- Params -->
   <!-- Filter Params -->
   <param name="min_particles"             value="100"/>
-  <param name="max_particles"             value="10000"/>
+  <param name="max_particles"             value="5000"/>
   <param name="kld_err"                   value="0.001"/>
   <param name="kld_z"                     value="0.99"/>
   <!-- <param name="update_min_d"              value="0.05"/> -->
