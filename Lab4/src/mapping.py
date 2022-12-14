@@ -8,7 +8,7 @@ import rospy
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
 from geometry_msgs.msg import Twist, Point, Pose, PoseStamped, PoseWithCovarianceStamped
-from std_msgs.msg import Bool
+from std_msgs.msg import Empty, Int32
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 import tf
@@ -54,6 +54,9 @@ class Mapping:
 
         self.phase_1_finish_pub = rospy.Publisher('/task_control/phase_1_finish', Empty, queue_size=10)
         self.found_path_pub = rospy.Publisher('/task_control/path', Path, queue_size=10)
+
+        self.init_phase_pub = rospy.Publisher('/task_control/init_phase', Int32, queue_size=10)
+        self.request_init_phase_sub = rospy.Subscriber('/task_control/request_init_phase', Empty, self.send_phase)
 
         # Robot pos
         self.px = 0
@@ -347,6 +350,14 @@ class Mapping:
 
     #################################### utils ####################################
 
+
+    def send_phase(self, msg):
+        rospy.loginfo("Recieived Phase request, Sending Phase = 1")
+        self.init_phase_pub.publish(1)
+
+
+
+
     @staticmethod
     def neighbors_of_4_all(mapdata, x, y):
 
@@ -492,6 +503,7 @@ class Mapping:
         print("Sleep")
         rospy.sleep(1)
         print("Wake up")
+
 
         # mapdata = Mapping.request_map()
         # mapdata = Mapping.get_test_map()

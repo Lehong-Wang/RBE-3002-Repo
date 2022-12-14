@@ -7,7 +7,7 @@ import rospy
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
-from std_msgs.msg import Empty
+from std_msgs.msg import Empty, Int32
 
 import priority_queue
 
@@ -25,6 +25,8 @@ UNKNOWN_VAL = -1
 
 TURN_WEIGHT = 5
 EXPANDED_WEIGHT = 10
+
+PHASE = None
 
 class PathPlanner:
 
@@ -64,7 +66,8 @@ class PathPlanner:
         # request for calculating frontier_goal as one point
         self.frontier_goal_task_pub = rospy.Publisher('/task_control/cspace_map', OccupancyGrid, queue_size=10)
 
-
+        self.init_phase_sub = rospy.Subscriber('/task_control/init_phase', Int32, self.update_phase)
+        self.request_init_phase_pub = rospy.Publisher('/task_control/request_init_phase', Empty, queue_size=10)
 
 
 
@@ -72,6 +75,8 @@ class PathPlanner:
 
         self.cspace_value = math.ceil(CSPACE_LEN / RESOLUTION)
         self.path_partial = 0.8
+
+        # self.phase = 1
 
         ## Sleep to allow roscore to do some housekeeping
         rospy.sleep(1.0)
@@ -81,6 +86,17 @@ class PathPlanner:
 
 
     # region helper
+
+
+    def update_phase(self, msg):
+        global PHASE
+        PHASE = msg.data
+        rospy.loginfo(f"Received msg from /init_phase, updated phase to {msg.data}")
+        print(f"Current PHASE: {PHASE}")
+
+    def request_phase(self, msg):
+        self.request_init_phase_pub.publish(Empty())
+
 
     @staticmethod
     def grid_to_index(mapdata, x, y):
@@ -322,9 +338,16 @@ class PathPlanner:
         """
         ### REQUIRED CREDIT
         rospy.loginfo("Requesting the map")
+        print(f"Running ar PHASE: {PHASE}")
         try:
-            rospy.wait_for_service('dynamic_map') # Block until service is available
-            grid = rospy.ServiceProxy('dynamic_map', GetMap)
+            if PHASE == 1:
+                rospy.wait_for_service('dynamic_map') # Block until service is available
+                grid = rospy.ServiceProxy('dynamic_map', GetMap)
+            elif PHASE == 3:
+                rospy.wait_for_service('static_map') # Block until service is available
+                grid = rospy.ServiceProxy('static_map', GetMap)
+            else:
+                rospy.loginfo(f"ERROR: PHASE not defined: {PHASE}")
         except Exception:
             print(f"Error when requesting map\n{Exception}")
             return None
@@ -682,7 +705,13 @@ class PathPlanner:
         goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
         path  = self.a_star(cspacedata, start, goal)
         ## Optimize waypoints
-        partial_path = PathPlanner.get_partial_path(path, self.path_partial)
+        if PHASE == 1:
+            partial_path = PathPlanner.get_partial_path(path, self.path_partial)
+        elif PHASE == 3:
+            partial_path = path
+        else:
+            rospy.loginfo(f"ERROR: PHASE not defined: {PHASE}")
+            partial_path = path
         waypoints = PathPlanner.optimize_path(partial_path)
         ## Return a Path message
         path_msg = PathPlanner.path_to_message(mapdata, waypoints)
@@ -826,12 +855,19 @@ class PathPlanner:
         """
         Runs the node until Ctrl-C is pressed.
         """
+        rospy.loginfo("Path Planner sleeping")
+        self.request_init_phase_pub.publish(Empty())
+        rospy.sleep(1)
+        rospy.loginfo("Wake up")
 
         # mapdata = PathPlanner.request_map()
         # self.calc_cspace(mapdata, self.cspace_value)
         self.run_phase_1()
         print(f"CSpace padding: {self.cspace_value}")
+
+
         rospy.spin()
+
 
         # mapdata = PathPlanner.get_test_map()
         # PathPlanner.print_map(mapdata)
